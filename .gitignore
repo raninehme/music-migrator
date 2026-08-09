@@ -1,5 +1,6 @@
 # Credentials and local state
 /config.yml
+.music-migrator/
 .*-session.json
 *.sqlite3
 unmatched.csv

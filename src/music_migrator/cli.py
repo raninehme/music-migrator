@@ -10,6 +10,7 @@ from music_migrator.cache import MatchCache
 from music_migrator.config import MigrationConfig
 from music_migrator.logging_config import configure_logging
 from music_migrator.migration import MigrationReport, Migrator
+from music_migrator.profiles import ProfilePaths
 from music_migrator.spotify import SpotifySource
 from music_migrator.tidal import TidalDestination
 
@@ -22,6 +23,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--playlist", action="append", default=[], metavar="SPOTIFY_ID")
     parser.add_argument("--no-saved-tracks", action="store_true")
     parser.add_argument("--apply", action="store_true", help="write changes; default is dry-run")
+    parser.add_argument("--profile", default="default", metavar="NAME")
+    parser.add_argument(
+        "--reset-auth", action="store_true", help="remove profile login sessions and exit"
+    )
     parser.add_argument("--quiet", action="store_true", help="show errors and final report only")
     parser.add_argument("--debug", action="store_true", help="show debug logs and tracebacks")
     parser.add_argument("--version", action="version", version=__version__)
@@ -33,6 +38,17 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(quiet=args.quiet, debug=args.debug)
     started = time.perf_counter()
     try:
+        paths = ProfilePaths.for_name(args.profile)
+        paths.prepare()
+        if args.reset_auth:
+            removed = paths.reset_auth()
+            logger.info(
+                "Reset authentication for profile %s (%d sessions removed)",
+                args.profile,
+                removed,
+            )
+            return 0
+
         config = MigrationConfig.load(args.config)
         logger.info(
             "Starting %s with %d workers and %d requests/second",
@@ -41,10 +57,10 @@ def main(argv: list[str] | None = None) -> int:
             config.rate_limit,
         )
         logger.info("Authenticating with Spotify")
-        spotify = SpotifySource.authenticate(config.spotify)
+        spotify = SpotifySource.authenticate(config.spotify, paths.spotify_session)
         logger.info("Authenticating with TIDAL")
-        tidal = TidalDestination.authenticate()
-        with MatchCache(Path(".music-migrator-cache.sqlite3")) as cache:
+        tidal = TidalDestination.authenticate(paths.tidal_session)
+        with MatchCache(paths.match_cache) as cache:
             report = Migrator(
                 spotify,
                 tidal,
@@ -58,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
                 config.include_saved_tracks and not args.no_saved_tracks,
             )
         _print_report(report, dry_run=not args.apply)
-        _write_unmatched(report, Path("unmatched.csv"))
+        _write_unmatched(report, paths.unmatched_report)
         logger.info("Completed in %.1f seconds", time.perf_counter() - started)
         return 0
     except Exception as error:
