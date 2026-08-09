@@ -6,6 +6,7 @@ from music_migrator.profiles import ProfilePaths
 def test_named_profile_is_fully_isolated():
     paths = ProfilePaths.for_name("rani")
     root = ".music-migrator/profiles/rani"
+    assert paths.config.as_posix() == f"{root}/config.yml"
     assert paths.spotify_session.as_posix() == f"{root}/spotify-session.json"
     assert paths.tidal_session.as_posix() == f"{root}/tidal-session.json"
     assert paths.match_cache.as_posix() == f"{root}/matches.sqlite3"
