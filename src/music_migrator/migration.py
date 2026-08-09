@@ -1,5 +1,9 @@
+import time
+from collections import deque
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from threading import Lock
 
 from music_migrator.cache import MatchCache
 from music_migrator.matching import best_match
@@ -30,6 +34,25 @@ class MigrationReport:
         return [track for item in self.collections for track in item.unmatched]
 
 
+class RateLimiter:
+    def __init__(self, requests_per_second: int):
+        self._limit = requests_per_second
+        self._starts: deque[float] = deque()
+        self._lock = Lock()
+
+    def wait(self) -> None:
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                while self._starts and self._starts[0] <= now - 1:
+                    self._starts.popleft()
+                if len(self._starts) < self._limit:
+                    self._starts.append(now)
+                    return
+                delay = self._starts[0] + 1 - now
+            time.sleep(delay)
+
+
 class Migrator:
     def __init__(
         self,
@@ -38,12 +61,16 @@ class Migrator:
         cache: MatchCache,
         *,
         dry_run: bool,
+        max_concurrency: int = 10,
+        rate_limit: int = 10,
         progress: Callable[[str, int | None, int | None], None] | None = None,
     ):
         self._spotify = spotify
         self._tidal = tidal
         self._cache = cache
         self._dry_run = dry_run
+        self._max_concurrency = max_concurrency
+        self._rate_limiter = RateLimiter(rate_limit)
         self._progress = progress or (lambda _label, _current, _total: None)
 
     def migrate(self, playlist_ids: list[str] | None, include_saved: bool) -> MigrationReport:
@@ -72,7 +99,7 @@ class Migrator:
 
         if include_saved:
             tracks = list(self._spotify.saved_tracks())
-            matched, unmatched = self._match_tracks(tracks, playlist.name)
+            matched, unmatched = self._match_tracks(tracks, "Liked Songs")
             changed = bool(matched)
             if not self._dry_run:
                 changed = self._tidal.add_favorites(matched) > 0
@@ -84,22 +111,28 @@ class Migrator:
     def _match_tracks(
         self, tracks: list[Track], collection_name: str
     ) -> tuple[list[str], list[Track]]:
-        matched: list[str] = []
-        unmatched: list[Track] = []
-        self._progress(f"Matching {collection_name}", 0, len(tracks))
-        for index, track in enumerate(tracks, start=1):
-            result = self._match_track(track)
-            if result.destination_id:
-                matched.append(result.destination_id)
-            else:
-                unmatched.append(track)
-            self._progress(f"Matching {collection_name}", index, len(tracks))
+        label = f"Matching {collection_name}"
+        self._progress(label, 0, len(tracks))
+        results: list[TrackMatch | None] = [None] * len(tracks)
+        with ThreadPoolExecutor(max_workers=self._max_concurrency) as executor:
+            pending = {
+                executor.submit(self._match_track, track): index
+                for index, track in enumerate(tracks)
+            }
+            for completed, future in enumerate(as_completed(pending), start=1):
+                results[pending[future]] = future.result()
+                self._progress(label, completed, len(tracks))
+
+        ordered = [result for result in results if result is not None]
+        matched = [result.destination_id for result in ordered if result.destination_id]
+        unmatched = [result.source for result in ordered if result.destination_id is None]
         return matched, unmatched
 
     def _match_track(self, track: Track) -> TrackMatch:
         cached = self._cache.get(track.source_id)
         if cached:
             return TrackMatch(track, cached, 1.0, "cache")
+        self._rate_limiter.wait()
         result = best_match(track, self._tidal.search_tracks(track))
         if result.destination_id:
             self._cache.put(track.source_id, result.destination_id)

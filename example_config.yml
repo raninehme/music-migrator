@@ -5,3 +5,6 @@ spotify:
   open_browser: true
 
 include_saved_tracks: true
+
+max_concurrency: 10
+rate_limit: 10

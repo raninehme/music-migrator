@@ -33,6 +33,8 @@ def main(argv: list[str] | None = None) -> int:
                 tidal,
                 cache,
                 dry_run=not args.apply,
+                max_concurrency=config.max_concurrency,
+                rate_limit=config.rate_limit,
                 progress=_show_progress,
             ).migrate(
                 args.playlist or None,
