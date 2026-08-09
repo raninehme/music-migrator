@@ -62,6 +62,8 @@ Migrate one or more playlists only:
 music-migrator --playlist SPOTIFY_PLAYLIST_ID --no-saved-tracks
 ```
 
+Use `--quiet` for only errors and the final report, or `--debug` for dependency logs and tracebacks.
+
 The first run opens Spotify and TIDAL authentication in your configured browser. Session files,
 the match cache, configuration, and unmatched report remain local and are ignored by Git.
 
