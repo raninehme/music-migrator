@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from music_migrator.cache import MatchCache
@@ -37,23 +38,27 @@ class Migrator:
         cache: MatchCache,
         *,
         dry_run: bool,
+        progress: Callable[[str, int | None, int | None], None] | None = None,
     ):
         self._spotify = spotify
         self._tidal = tidal
         self._cache = cache
         self._dry_run = dry_run
+        self._progress = progress or (lambda _label, _current, _total: None)
 
     def migrate(self, playlist_ids: list[str] | None, include_saved: bool) -> MigrationReport:
+        self._progress("Loading Spotify playlists", None, None)
         source_playlists = (
             [self._spotify.playlist(item) for item in playlist_ids]
             if playlist_ids
             else list(self._spotify.playlists())
         )
+        self._progress("Loading TIDAL playlists", None, None)
         destinations = self._tidal.playlists_by_name()
         report = MigrationReport()
         for playlist in source_playlists:
             tracks = list(self._spotify.playlist_tracks(playlist.source_id))
-            matched, unmatched = self._match_tracks(tracks)
+            matched, unmatched = self._match_tracks(tracks, playlist.name)
             target = destinations.get(playlist.name)
             changed = target is None or self._tidal.playlist_track_ids(target) != matched
             if not self._dry_run and changed:
@@ -67,7 +72,7 @@ class Migrator:
 
         if include_saved:
             tracks = list(self._spotify.saved_tracks())
-            matched, unmatched = self._match_tracks(tracks)
+            matched, unmatched = self._match_tracks(tracks, playlist.name)
             changed = bool(matched)
             if not self._dry_run:
                 changed = self._tidal.add_favorites(matched) > 0
@@ -76,15 +81,19 @@ class Migrator:
             )
         return report
 
-    def _match_tracks(self, tracks: list[Track]) -> tuple[list[str], list[Track]]:
+    def _match_tracks(
+        self, tracks: list[Track], collection_name: str
+    ) -> tuple[list[str], list[Track]]:
         matched: list[str] = []
         unmatched: list[Track] = []
-        for track in tracks:
+        self._progress(f"Matching {collection_name}", 0, len(tracks))
+        for index, track in enumerate(tracks, start=1):
             result = self._match_track(track)
             if result.destination_id:
                 matched.append(result.destination_id)
             else:
                 unmatched.append(track)
+            self._progress(f"Matching {collection_name}", index, len(tracks))
         return matched, unmatched
 
     def _match_track(self, track: Track) -> TrackMatch:

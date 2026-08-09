@@ -28,7 +28,13 @@ def main(argv: list[str] | None = None) -> int:
         spotify = SpotifySource.authenticate(config.spotify)
         tidal = TidalDestination.authenticate()
         with MatchCache(Path(".music-migrator-cache.sqlite3")) as cache:
-            report = Migrator(spotify, tidal, cache, dry_run=not args.apply).migrate(
+            report = Migrator(
+                spotify,
+                tidal,
+                cache,
+                dry_run=not args.apply,
+                progress=_show_progress,
+            ).migrate(
                 args.playlist or None,
                 config.include_saved_tracks and not args.no_saved_tracks,
             )
@@ -38,6 +44,14 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, RuntimeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
+
+
+def _show_progress(label: str, current: int | None, total: int | None) -> None:
+    if current is None or total is None:
+        print(label, flush=True)
+        return
+    end = "\n" if current >= total else "\r"
+    print(f"{label}: {current}/{total}", end=end, flush=True)
 
 
 def _print_report(report: MigrationReport, *, dry_run: bool) -> None:
