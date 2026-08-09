@@ -1,3 +1,4 @@
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
@@ -36,10 +37,47 @@ class TidalDestination:
     def create_playlist(self, name: str, description: str) -> Any:
         return self._session.user.create_playlist(name, description)
 
-    def search_tracks(self, source: Track, limit: int = 20) -> list[Track]:
-        query = " ".join((source.title, *source.artists))
-        results = self._session.search(query, models=[tidalapi.Track], limit=limit)
-        return [self._to_track(track) for track in results.get("tracks", [])]
+    def search_tracks(
+        self,
+        source: Track,
+        limit: int = 20,
+        before_request: Callable[[], None] | None = None,
+    ) -> list[Track]:
+        candidates: dict[str, Track] = {}
+        for query in self._search_queries(source):
+            if before_request:
+                before_request()
+            results = self._session.search(query, models=[tidalapi.Track], limit=limit)
+            for raw in results.get("tracks", []):
+                candidate = self._to_track(raw)
+                candidates[candidate.source_id] = candidate
+            if source.isrc and any(
+                item.isrc and item.isrc.casefold() == source.isrc.casefold()
+                for item in candidates.values()
+            ):
+                break
+        return list(candidates.values())
+
+    @classmethod
+    def _search_queries(cls, source: Track) -> list[str]:
+        primary_artist = source.artists[0]
+        simplified = cls._simplify_title(source.title)
+        queries = [f"{simplified} {primary_artist}"]
+        if simplified != source.title:
+            queries.append(f"{source.title} {primary_artist}")
+        queries.append(simplified)
+        return list(dict.fromkeys(queries))
+
+    @staticmethod
+    def _simplify_title(title: str) -> str:
+        title = re.sub(r"\s+-\s+from\b.*$", "", title, flags=re.IGNORECASE)
+        title = re.sub(
+            r"\s*[\[(][^\])]*\b(?:feat(?:uring)?\.?|with)\b[^\])]*[\])]",
+            "",
+            title,
+            flags=re.IGNORECASE,
+        )
+        return title.strip()
 
     def sync_playlist(self, playlist: Any, track_ids: list[str]) -> bool:
         existing = self.playlist_track_ids(playlist)

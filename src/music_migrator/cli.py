@@ -110,7 +110,11 @@ def _write_unmatched(report: MigrationReport, path: Path) -> None:
     with path.open("w", encoding="utf-8", newline="") as output:
         writer = csv.writer(output)
         writer.writerow(("spotify_id", "title", "artists", "album", "isrc"))
+        seen: set[str] = set()
         for track in report.unmatched:
+            if track.source_id in seen:
+                continue
+            seen.add(track.source_id)
             writer.writerow(
                 (track.source_id, track.title, "; ".join(track.artists), track.album, track.isrc)
             )
