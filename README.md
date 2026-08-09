@@ -2,9 +2,6 @@
 
 Move all of your Spotify playlists and liked songs to TIDAL.
 
-This is an independent implementation. It does not contain code copied from
-`spotify2tidal/spotify_to_tidal`.
-
 ## What it does
 
 - Migrates every playlist you own, plus collaborative playlists
@@ -34,7 +31,7 @@ http://127.0.0.1:8888/callback
 Install the project:
 
 ```bash
-git clone YOUR_REPOSITORY_URL music-migrator
+git clone https://github.com/raninehme/music-migrator.git
 cd music-migrator
 pyenv virtualenv 3.12.8 music-migrator
 pyenv local music-migrator
