@@ -12,11 +12,26 @@ def normalize(value: str | None) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", ascii_value.casefold()))
 
 
+def normalize_title(value: str | None) -> str:
+    if not value:
+        return ""
+    value = re.sub(r"\s+-\s+from\b.*$", "", value, flags=re.IGNORECASE)
+    value = re.sub(
+        r"\s*[\[(][^\])]*\b(?:feat(?:uring)?\.?|with)\b[^\])]*[\])]",
+        "",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return normalize(value)
+
+
 def score(source: Track, candidate: Track) -> TrackMatch:
     if source.isrc and candidate.isrc and source.isrc.casefold() == candidate.isrc.casefold():
         return TrackMatch(source, candidate.source_id, 1.0, "ISRC")
 
-    title = SequenceMatcher(None, normalize(source.title), normalize(candidate.title)).ratio()
+    title = SequenceMatcher(
+        None, normalize_title(source.title), normalize_title(candidate.title)
+    ).ratio()
     source_artists = normalize(" ".join(source.artists))
     candidate_artists = normalize(" ".join(candidate.artists))
     artists = SequenceMatcher(None, source_artists, candidate_artists).ratio()
