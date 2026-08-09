@@ -67,6 +67,21 @@ Use `--quiet` for only errors and the final report, or `--debug` for dependency 
 The first run opens Spotify and TIDAL authentication in your configured browser. Session files,
 the match cache, configuration, and unmatched report remain local and are ignored by Git.
 
+## Multiple accounts
+
+Use a named profile to keep another person's Spotify login, TIDAL login, match cache, and unmatched
+report separate:
+
+```bash
+music-migrator --profile girlfriend
+music-migrator --profile girlfriend --apply
+```
+
+To remove the saved logins for a profile without deleting its match cache:
+
+```bash
+music-migrator --profile girlfriend --reset-auth
+```
 ## Behavior and limits
 
 Playlist names identify corresponding TIDAL playlists. The command stops if TIDAL has duplicate
