@@ -90,8 +90,10 @@ class Migrator:
             changed = target is None or self._tidal.playlist_track_ids(target) != matched
             if not self._dry_run and changed:
                 if target is None:
+                    self._progress(f"Creating TIDAL playlist {playlist.name}", None, None)
                     target = self._tidal.create_playlist(playlist.name, playlist.description)
                     destinations[playlist.name] = target
+                self._progress(f"Syncing TIDAL playlist {playlist.name}", None, None)
                 self._tidal.sync_playlist(target, matched)
             report.collections.append(
                 CollectionReport(playlist.name, len(tracks), len(matched), unmatched, changed)
@@ -102,6 +104,7 @@ class Migrator:
             matched, unmatched = self._match_tracks(tracks, "Liked Songs")
             changed = bool(matched)
             if not self._dry_run:
+                self._progress("Syncing TIDAL favorites", None, None)
                 changed = self._tidal.add_favorites(matched) > 0
             report.collections.append(
                 CollectionReport("Liked Songs", len(tracks), len(matched), unmatched, changed)
