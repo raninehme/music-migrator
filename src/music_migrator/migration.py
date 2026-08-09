@@ -136,7 +136,9 @@ class Migrator:
         if cached:
             return TrackMatch(track, cached, 1.0, "cache")
         self._rate_limiter.wait()
-        result = best_match(track, self._tidal.search_tracks(track))
+        result = best_match(
+            track, self._tidal.search_tracks(track, before_request=self._rate_limiter.wait)
+        )
         if result.destination_id:
             self._cache.put(track.source_id, result.destination_id)
         return result
