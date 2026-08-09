@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Migrate Spotify music to TIDAL")
+    parser.add_argument("--profile", required=True, metavar="NAME")
     parser.add_argument("--config", type=Path, default=Path("config.yml"))
     parser.add_argument("--playlist", action="append", default=[], metavar="SPOTIFY_ID")
     parser.add_argument("--no-saved-tracks", action="store_true")
     parser.add_argument("--apply", action="store_true", help="write changes; default is dry-run")
-    parser.add_argument("--profile", default="default", metavar="NAME")
     parser.add_argument(
         "--reset-auth", action="store_true", help="remove profile login sessions and exit"
     )
@@ -34,12 +34,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    configure_logging(quiet=args.quiet, debug=args.debug)
-    started = time.perf_counter()
+    parser = build_parser()
+    args = parser.parse_args(argv)
     try:
         paths = ProfilePaths.for_name(args.profile)
-        paths.prepare()
+    except ValueError as error:
+        parser.error(str(error))
+    paths.prepare()
+    configure_logging(paths.log_file, quiet=args.quiet, debug=args.debug)
+    started = time.perf_counter()
+
+    try:
         if args.reset_auth:
             removed = paths.reset_auth()
             logger.info(
@@ -51,8 +56,9 @@ def main(argv: list[str] | None = None) -> int:
 
         config = MigrationConfig.load(args.config)
         logger.info(
-            "Starting %s with %d workers and %d requests/second",
+            "Starting %s for profile %s with %d workers and %d requests/second",
             "migration" if args.apply else "dry run",
+            args.profile,
             config.max_concurrency,
             config.rate_limit,
         )
