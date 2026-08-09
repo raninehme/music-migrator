@@ -32,7 +32,6 @@ cd music-migrator
 pyenv virtualenv 3.12.8 music-migrator
 pyenv local music-migrator
 python -m pip install -e .
-cp example_config.yml config.yml
 ```
 
 Create an application in the Spotify Developer Dashboard, select the Web API, and register this exact redirect URI:
@@ -41,10 +40,17 @@ Create an application in the Spotify Developer Dashboard, select the Web API, an
 http://127.0.0.1:8888/callback
 ```
 
-Add the application's client ID and client secret to `config.yml`, then preview the migration:
+Create a profile configuration and enter the Spotify credentials when prompted:
 
 ```bash
-music-migrator --profile rani
+music-migrator --setup rani
+```
+
+
+Preview the migration explicitly:
+
+```bash
+music-migrator --profile rani --dry-run
 ```
 
 Review the summary and unmatched report. When ready, apply the same migration:
@@ -57,7 +63,7 @@ The first run opens Spotify and TIDAL authentication in your configured browser.
 
 ## Configuration
 
-`config.yml` contains shared application and migration settings:
+`config.yml` is stored inside each profile and contains its application and migration settings:
 
 ```yaml
 spotify:
@@ -74,15 +80,15 @@ rate_limit: 10
 
 `max_concurrency` controls simultaneous TIDAL searches. `rate_limit` limits how many search requests may start per second. The defaults are a practical starting point; lower them if the service begins rejecting requests.
 
-`config.yml` is ignored by Git. Never commit Spotify credentials or profile data.
+Profile configuration is ignored by Git. Never commit Spotify credentials or profile data.
 
 ## Profiles
 
-`--profile` is required for every command. Each name represents one Spotify-to-TIDAL account pairing, preventing a later migration from silently reusing another person's login or match cache.
+Create each profile once with `--setup NAME`. Use `--profile NAME` for migrations and authentication resets. Each name represents one Spotify-to-TIDAL account pairing, preventing silent reuse of another account login or match cache.
 
 ```bash
-music-migrator --profile rani
-music-migrator --profile girlfriend
+music-migrator --profile rani --dry-run
+music-migrator --setup girlfriend
 ```
 
 Profile names may contain letters, numbers, underscores, and hyphens. Local state is stored as:
@@ -91,6 +97,7 @@ Profile names may contain letters, numbers, underscores, and hyphens. Local stat
 .music-migrator/
 └── profiles/
     └── rani/
+        |-- config.yml
         ├── spotify-session.json
         ├── tidal-session.json
         ├── matches.sqlite3
@@ -113,7 +120,7 @@ The match cache and previous reports remain available.
 Preview all playlists and Liked Songs:
 
 ```bash
-music-migrator --profile rani
+music-migrator --profile rani --dry-run
 ```
 
 Apply all changes:
@@ -126,16 +133,12 @@ Migrate selected playlists and skip Liked Songs:
 
 ```bash
 music-migrator --profile rani \
+  --dry-run \
   --playlist SPOTIFY_PLAYLIST_ID \
   --playlist ANOTHER_PLAYLIST_ID \
   --no-saved-tracks
 ```
 
-Use a different config file:
-
-```bash
-music-migrator --profile rani --config path/to/config.yml
-```
 
 Use `--quiet` for errors and the final report only. Use `--debug` for detailed diagnostics and tracebacks. Run `music-migrator --help` for the complete CLI reference.
 
@@ -143,7 +146,7 @@ Use `--quiet` for errors and the final report only. Use `--debug` for detailed d
 
 The matcher first tries the recording's ISRC. When an exact identifier is unavailable, it searches TIDAL using normalized title and primary-artist queries, then compares title, artists, album, and duration. Confirmed matches are cached per profile.
 
-Dry-run mode is always the default. It authenticates, loads the source library, searches TIDAL, and reports planned changes without modifying the destination. `--apply` is required to create or update playlists and favorites.
+Migration mode must be explicit. `--dry-run` authenticates, loads the source library, searches TIDAL, and reports planned changes without modifying the destination. `--apply` is required to create or update playlists and favorites.
 
 Tracks without a sufficiently reliable match are omitted instead of inserting a questionable result. They are written to the profile's `reports/unmatched.csv` for review.
 
@@ -175,7 +178,7 @@ Reset the selected profile, then run it again and sign in with the intended Spot
 
 ```bash
 music-migrator --profile rani --reset-auth
-music-migrator --profile rani
+music-migrator --profile rani --dry-run
 ```
 
 ### Searches are throttled or unstable

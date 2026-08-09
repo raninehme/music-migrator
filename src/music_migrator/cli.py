@@ -1,9 +1,12 @@
 import argparse
 import csv
+import getpass
 import logging
 import sys
 import time
 from pathlib import Path
+
+import yaml
 
 from music_migrator import __version__
 from music_migrator.cache import MatchCache
@@ -19,11 +22,14 @@ logger = logging.getLogger(__name__)
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Migrate Spotify music to TIDAL")
-    parser.add_argument("--profile", required=True, metavar="NAME")
-    parser.add_argument("--config", type=Path, default=Path("config.yml"))
+    identity = parser.add_mutually_exclusive_group(required=True)
+    identity.add_argument("--profile", metavar="NAME")
+    identity.add_argument("--setup", metavar="NAME", help="create a new profile configuration")
     parser.add_argument("--playlist", action="append", default=[], metavar="SPOTIFY_ID")
     parser.add_argument("--no-saved-tracks", action="store_true")
-    parser.add_argument("--apply", action="store_true", help="write changes; default is dry-run")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true", help="preview changes without writing")
+    mode.add_argument("--apply", action="store_true", help="write changes to TIDAL")
     parser.add_argument(
         "--reset-auth", action="store_true", help="remove profile login sessions and exit"
     )
@@ -36,8 +42,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    profile_name = args.setup or args.profile
     try:
-        paths = ProfilePaths.for_name(args.profile)
+        paths = ProfilePaths.for_name(profile_name)
     except ValueError as error:
         parser.error(str(error))
     paths.prepare()
@@ -45,20 +52,31 @@ def main(argv: list[str] | None = None) -> int:
     started = time.perf_counter()
 
     try:
+        if args.setup:
+            if args.dry_run or args.apply or args.reset_auth:
+                parser.error("--setup cannot be combined with migration or reset options")
+            _setup_profile(paths, args.setup)
+            return 0
+
         if args.reset_auth:
+            if args.dry_run or args.apply:
+                parser.error("--reset-auth cannot be combined with --dry-run or --apply")
             removed = paths.reset_auth()
             logger.info(
                 "Reset authentication for profile %s (%d sessions removed)",
-                args.profile,
+                profile_name,
                 removed,
             )
             return 0
 
-        config = MigrationConfig.load(args.config)
+        if not args.dry_run and not args.apply:
+            parser.error("choose exactly one migration mode: --dry-run or --apply")
+
+        config = MigrationConfig.load(paths.config)
         logger.info(
             "Starting %s for profile %s with %d workers and %d requests/second",
             "migration" if args.apply else "dry run",
-            args.profile,
+            profile_name,
             config.max_concurrency,
             config.rate_limit,
         )
@@ -141,6 +159,32 @@ def _write_unmatched(report: MigrationReport, path: Path) -> None:
                 (track.source_id, track.title, "; ".join(track.artists), track.album, track.isrc)
             )
     logger.warning("Unmatched tracks written to %s", path)
+
+
+def _setup_profile(paths: ProfilePaths, profile_name: str) -> None:
+    if paths.config.exists():
+        raise FileExistsError(f"Profile '{profile_name}' is already configured at {paths.config}")
+
+    client_id = input("Spotify client ID: ").strip()
+    client_secret = getpass.getpass("Spotify client secret: ").strip()
+    if not client_id or not client_secret:
+        raise ValueError("Spotify client ID and client secret are required")
+
+    config = {
+        "spotify": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": "http://127.0.0.1:8888/callback",
+            "open_browser": True,
+        },
+        "include_saved_tracks": True,
+        "max_concurrency": 10,
+        "rate_limit": 10,
+    }
+    with paths.config.open("x", encoding="utf-8") as output:
+        yaml.safe_dump(config, output, sort_keys=False)
+    paths.config.chmod(0o600)
+    logger.info("Created profile %s at %s", profile_name, paths.config)
 
 
 if __name__ == "__main__":

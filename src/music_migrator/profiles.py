@@ -8,6 +8,7 @@ PROFILE_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 @dataclass(frozen=True, slots=True)
 class ProfilePaths:
     root: Path
+    config: Path
     spotify_session: Path
     tidal_session: Path
     match_cache: Path
@@ -21,6 +22,7 @@ class ProfilePaths:
         root = Path(".music-migrator") / "profiles" / name
         return cls(
             root=root,
+            config=root / "config.yml",
             spotify_session=root / "spotify-session.json",
             tidal_session=root / "tidal-session.json",
             match_cache=root / "matches.sqlite3",
