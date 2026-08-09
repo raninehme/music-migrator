@@ -1,5 +1,5 @@
 # Credentials and local state
-config.yml
+/config.yml
 .*-session.json
 *.sqlite3
 unmatched.csv
