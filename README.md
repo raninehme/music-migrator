@@ -4,17 +4,11 @@ Move Spotify playlists and Liked Songs to TIDAL with safe previews, concurrent m
 
 ## Features
 
-- Migrates every owned or collaborative Spotify playlist
-- Migrates Spotify Liked Songs to TIDAL favorites
-- Supports selecting individual playlists by Spotify ID
-- Matches by ISRC first, then scores title, artists, album, and duration
-- Preserves playlist order and reuses corresponding TIDAL playlists
-- Searches concurrently with configurable worker and request limits
-- Caches confirmed matches for faster, consistent reruns
-- Requires an explicit `--dry-run` preview or `--apply` migration mode
-- Keeps authentication, configuration, caches, logs, and reports isolated by profile
-- Shows track-level progress and writes rotating logs
-- Produces a CSV containing tracks that could not be matched
+- Migrates Spotify playlists and Liked Songs to TIDAL
+- Finds reliable matches while preserving playlist order
+- Supports fast concurrent searches with progress tracking
+- Provides explicit preview and apply modes
+- Keeps accounts, caches, logs, and reports isolated by profile
 
 ## Requirements
 
