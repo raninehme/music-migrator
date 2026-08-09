@@ -21,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "build>=1.2,<2",
-  "pytest>=8,<9",
+  "pytest>=8,<10",
   "pytest-mock>=3.14,<4",
   "ruff>=0.12,<1",
 ]
