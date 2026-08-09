@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=82.0.1", "wheel>=0.47.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "music-migrator"
+version = "0.1.0"
+description = "Move playlists and saved tracks between music services"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "PolyForm-Noncommercial-1.0.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Rani Nehme" }]
+dependencies = [
+  "PyYAML>=6.0,<7",
+  "requests>=2.32,<3",
+  "spotipy>=2.26,<3",
+  "tidalapi>=0.8.11,<0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2",
+  "pytest>=8,<9",
+  "pytest-mock>=3.14,<4",
+  "ruff>=0.12,<1",
+]
+
+[project.scripts]
+music-migrator = "music_migrator.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["music_migrator*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --maxfail=1"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

@@ -1,0 +1,7 @@
+spotify:
+  client_id: your_client_id
+  client_secret: your_client_secret
+  redirect_uri: http://127.0.0.1:8888/callback
+  open_browser: true
+
+include_saved_tracks: true

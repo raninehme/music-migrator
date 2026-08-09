@@ -1,0 +1,23 @@
+# Credentials and local state
+config.yml
+.*-session.json
+*.sqlite3
+unmatched.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+.venv/
+.python-version
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Editors
+.idea/
+.vscode/
