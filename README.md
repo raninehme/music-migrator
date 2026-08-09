@@ -7,12 +7,12 @@ Move Spotify playlists and Liked Songs to TIDAL with safe previews, concurrent m
 - Migrates every owned or collaborative Spotify playlist
 - Migrates Spotify Liked Songs to TIDAL favorites
 - Supports selecting individual playlists by Spotify ID
-- Matches by ISRC first, then searches and scores title, artists, album, and duration
+- Matches by ISRC first, then scores title, artists, album, and duration
 - Preserves playlist order and reuses corresponding TIDAL playlists
 - Searches concurrently with configurable worker and request limits
 - Caches confirmed matches for faster, consistent reruns
-- Runs as a read-only dry run unless `--apply` is supplied
-- Keeps authentication, caches, logs, and reports isolated by profile
+- Requires an explicit `--dry-run` preview or `--apply` migration mode
+- Keeps authentication, configuration, caches, logs, and reports isolated by profile
 - Shows track-level progress and writes rotating logs
 - Produces a CSV containing tracks that could not be matched
 
@@ -22,48 +22,77 @@ Move Spotify playlists and Liked Songs to TIDAL with safe previews, concurrent m
 - A Spotify account and [Spotify Developer application](https://developer.spotify.com/dashboard)
 - A TIDAL account
 
-## Quick start
+Check your Python version with:
 
-Clone and install the project:
+```bash
+python --version
+```
+
+## Installation
+
+### Install directly with pip
+
+```bash
+python -m pip install git+https://github.com/raninehme/music-migrator.git
+```
+
+### Install in a virtual environment
+
+A virtual environment is recommended because it keeps music-migrator and its dependencies isolated.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install git+https://github.com/raninehme/music-migrator.git
+```
+
+On Windows PowerShell, activate it with:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+To install an editable checkout for development:
 
 ```bash
 git clone https://github.com/raninehme/music-migrator.git
 cd music-migrator
-pyenv virtualenv 3.12.8 music-migrator
-pyenv local music-migrator
 python -m pip install -e .
 ```
 
-Create an application in the Spotify Developer Dashboard, select the Web API, and register this exact redirect URI:
+## Quick start
+
+Run commands from the directory where you want the local `.music-migrator` profile data stored.
+
+Create a Spotify application in the Spotify Developer Dashboard, select the Web API, and register this exact redirect URI:
 
 ```text
 http://127.0.0.1:8888/callback
 ```
 
-Create a profile configuration and enter the Spotify credentials when prompted:
+Create a profile and enter the Spotify client ID and secret when prompted:
 
 ```bash
 music-migrator --setup rani
 ```
 
-
-Preview the migration explicitly:
+Preview the migration:
 
 ```bash
 music-migrator --profile rani --dry-run
 ```
 
-Review the summary and unmatched report. When ready, apply the same migration:
+Review the summary and unmatched report, then apply the migration:
 
 ```bash
 music-migrator --profile rani --apply
 ```
 
-The first run opens Spotify and TIDAL authentication in your configured browser.
+The first migration run opens Spotify and TIDAL authentication in your configured browser.
 
 ## Configuration
 
-`config.yml` is stored inside each profile and contains its application and migration settings:
+Each profile contains its own `config.yml`:
 
 ```yaml
 spotify:
@@ -78,42 +107,42 @@ max_concurrency: 10
 rate_limit: 10
 ```
 
-`max_concurrency` controls simultaneous TIDAL searches. `rate_limit` limits how many search requests may start per second. The defaults are a practical starting point; lower them if the service begins rejecting requests.
+`max_concurrency` controls simultaneous TIDAL searches. `rate_limit` limits how many search requests may start per second. The defaults are a practical starting point; lower them if TIDAL begins rejecting requests.
 
-Profile configuration is ignored by Git. Never commit Spotify credentials or profile data.
+Profile data is ignored by Git. Never commit Spotify credentials or saved sessions.
 
 ## Profiles
 
-Create each profile once with `--setup NAME`. Use `--profile NAME` for migrations and authentication resets. Each name represents one Spotify-to-TIDAL account pairing, preventing silent reuse of another account login or match cache.
+Create each profile once with `--setup NAME`. Use `--profile NAME` for migrations and authentication resets. Profiles prevent one migration from silently reusing another account's login or match cache.
 
 ```bash
-music-migrator --profile rani --dry-run
 music-migrator --setup girlfriend
+music-migrator --profile girlfriend --dry-run
 ```
 
 Profile names may contain letters, numbers, underscores, and hyphens. Local state is stored as:
 
 ```text
 .music-migrator/
-└── profiles/
-    └── rani/
-        |-- config.yml
-        ├── spotify-session.json
-        ├── tidal-session.json
-        ├── matches.sqlite3
-        ├── logs/
-        │   └── music-migrator.log
-        └── reports/
-            └── unmatched.csv
++-- profiles/
+    +-- rani/
+        +-- config.yml
+        +-- spotify-session.json
+        +-- tidal-session.json
+        +-- matches.sqlite3
+        +-- logs/
+        |   +-- music-migrator.log
+        +-- reports/
+            +-- unmatched.csv
 ```
 
-To authenticate a profile with different accounts, remove only its saved login sessions:
+To remove only a profile's saved logins:
 
 ```bash
 music-migrator --profile rani --reset-auth
 ```
 
-The match cache and previous reports remain available.
+The profile configuration, match cache, logs, and reports remain available.
 
 ## Migration commands
 
@@ -129,7 +158,7 @@ Apply all changes:
 music-migrator --profile rani --apply
 ```
 
-Migrate selected playlists and skip Liked Songs:
+Preview selected playlists and skip Liked Songs:
 
 ```bash
 music-migrator --profile rani \
@@ -138,7 +167,6 @@ music-migrator --profile rani \
   --playlist ANOTHER_PLAYLIST_ID \
   --no-saved-tracks
 ```
-
 
 Use `--quiet` for errors and the final report only. Use `--debug` for detailed diagnostics and tracebacks. Run `music-migrator --help` for the complete CLI reference.
 
@@ -183,7 +211,7 @@ music-migrator --profile rani --dry-run
 
 ### Searches are throttled or unstable
 
-Reduce `max_concurrency` and `rate_limit` in `config.yml`, then rerun. Confirmed cached matches will be reused.
+Reduce `max_concurrency` and `rate_limit` in the profile's `config.yml`, then rerun. Confirmed cached matches will be reused.
 
 ### Some tracks remain unmatched
 
@@ -191,9 +219,9 @@ Check the profile's `reports/unmatched.csv`. Editions, remasters, regional catal
 
 ## Development
 
-Install development dependencies and run all checks:
-
 ```bash
+git clone https://github.com/raninehme/music-migrator.git
+cd music-migrator
 python -m pip install -e ".[dev]"
 ruff format --check src tests
 ruff check .
