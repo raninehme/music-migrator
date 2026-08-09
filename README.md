@@ -67,19 +67,19 @@ http://127.0.0.1:8888/callback
 Create a profile and enter the Spotify client ID and secret when prompted:
 
 ```bash
-music-migrator --setup rani
+music-migrator --setup YOUR_PROFILE
 ```
 
 Preview the migration:
 
 ```bash
-music-migrator --profile rani --dry-run
+music-migrator --profile YOUR_PROFILE --dry-run
 ```
 
 Review the summary and unmatched report, then apply the migration:
 
 ```bash
-music-migrator --profile rani --apply
+music-migrator --profile YOUR_PROFILE --apply
 ```
 
 The first migration run opens Spotify and TIDAL authentication in your configured browser.
@@ -119,7 +119,7 @@ Profile names may contain letters, numbers, underscores, and hyphens. Local stat
 ```text
 .music-migrator/
 +-- profiles/
-    +-- rani/
+    +-- YOUR_PROFILE/
         +-- config.yml
         +-- spotify-session.json
         +-- tidal-session.json
@@ -133,7 +133,7 @@ Profile names may contain letters, numbers, underscores, and hyphens. Local stat
 To remove only a profile's saved logins:
 
 ```bash
-music-migrator --profile rani --reset-auth
+music-migrator --profile YOUR_PROFILE --reset-auth
 ```
 
 The profile configuration, match cache, logs, and reports remain available.
@@ -143,19 +143,19 @@ The profile configuration, match cache, logs, and reports remain available.
 Preview all playlists and Liked Songs:
 
 ```bash
-music-migrator --profile rani --dry-run
+music-migrator --profile YOUR_PROFILE --dry-run
 ```
 
 Apply all changes:
 
 ```bash
-music-migrator --profile rani --apply
+music-migrator --profile YOUR_PROFILE --apply
 ```
 
 Preview selected playlists and skip Liked Songs:
 
 ```bash
-music-migrator --profile rani \
+music-migrator --profile YOUR_PROFILE \
   --dry-run \
   --playlist SPOTIFY_PLAYLIST_ID \
   --playlist ANOTHER_PLAYLIST_ID \
@@ -199,8 +199,8 @@ Confirm the Spotify application uses `http://127.0.0.1:8888/callback` exactly. I
 Reset the selected profile, then run it again and sign in with the intended Spotify and TIDAL accounts:
 
 ```bash
-music-migrator --profile rani --reset-auth
-music-migrator --profile rani --dry-run
+music-migrator --profile YOUR_PROFILE --reset-auth
+music-migrator --profile YOUR_PROFILE --dry-run
 ```
 
 ### Searches are throttled or unstable
