@@ -40,6 +40,7 @@ cp example_config.yml config.yml
 ```
 
 Put the Spotify client ID and secret in `config.yml`. The file is ignored by Git. Never commit it.
+`max_concurrency` controls simultaneous track searches; `rate_limit` caps search requests per second.
 
 ## Run
 

@@ -17,6 +17,8 @@ class SpotifyConfig:
 class MigrationConfig:
     spotify: SpotifyConfig
     include_saved_tracks: bool = True
+    max_concurrency: int = 10
+    rate_limit: int = 10
 
     @classmethod
     def load(cls, path: Path) -> "MigrationConfig":
@@ -35,6 +37,13 @@ class MigrationConfig:
         if missing:
             raise ValueError(f"Missing Spotify setting(s): {', '.join(missing)}")
 
+        max_concurrency = int(raw.get("max_concurrency", 10))
+        rate_limit = int(raw.get("rate_limit", 10))
+        if max_concurrency < 1:
+            raise ValueError("max_concurrency must be at least 1")
+        if rate_limit < 1:
+            raise ValueError("rate_limit must be at least 1")
+
         return cls(
             spotify=SpotifyConfig(
                 client_id=str(spotify_raw["client_id"]),
@@ -43,4 +52,6 @@ class MigrationConfig:
                 open_browser=bool(spotify_raw.get("open_browser", True)),
             ),
             include_saved_tracks=bool(raw.get("include_saved_tracks", True)),
+            max_concurrency=max_concurrency,
+            rate_limit=rate_limit,
         )
