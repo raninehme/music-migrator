@@ -47,3 +47,24 @@ def test_rejects_non_positive_performance_settings(setting):
     }
     with pytest.raises(ValueError, match=f"{setting} must be at least 1"):
         MigrationConfig.from_mapping(raw)
+
+
+def test_each_search_request_uses_one_rate_limit_slot():
+    source = Track("source", "Song", ("Artist",), "Album", 180, "ISRC")
+    candidate = Track("target", "Song", ("Artist",), "Album", 180, "ISRC")
+    destination = Mock()
+
+    def search(_track, *, before_request):
+        before_request()
+        return [candidate]
+
+    destination.search_tracks.side_effect = search
+    cache = Mock()
+    cache.get.return_value = None
+    migrator = Migrator(Mock(), destination, cache, dry_run=True)
+    migrator._rate_limiter.wait = Mock()
+
+    result = migrator._match_track(source)
+
+    assert result.destination_id == "target"
+    migrator._rate_limiter.wait.assert_called_once_with()

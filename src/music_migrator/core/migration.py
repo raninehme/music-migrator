@@ -9,6 +9,7 @@ from typing import Literal
 from music_migrator.core.cache import MatchCache
 from music_migrator.core.matching import best_match
 from music_migrator.core.models import Track, TrackMatch
+from music_migrator.core.retry import retry_request
 from music_migrator.services.base import MusicDestination, MusicSource
 
 PlaylistMode = Literal["combine", "replace"]
@@ -89,22 +90,28 @@ class Migrator:
     ) -> MigrationReport:
         self._progress(f"Loading {self._source.display_name} playlists", None, None)
         source_playlists = (
-            [self._source.playlist(item) for item in playlist_ids]
+            [retry_request(lambda item=item: self._source.playlist(item)) for item in playlist_ids]
             if playlist_ids
-            else list(self._source.playlists())
+            else retry_request(lambda: list(self._source.playlists()))
         )
         if playlist_names is not None:
             source_playlists = [item for item in source_playlists if item.name in playlist_names]
         self._progress(f"Loading {self._destination.display_name} playlists", None, None)
-        destinations = self._destination.playlists_by_name()
+        destinations = retry_request(self._destination.playlists_by_name)
         report = MigrationReport()
         for playlist in source_playlists:
-            tracks = list(self._source.playlist_tracks(playlist.source_id))
+            tracks = retry_request(
+                lambda playlist=playlist: list(self._source.playlist_tracks(playlist.source_id))
+            )
             if not tracks:
                 continue
             matched, unmatched = self._match_tracks(tracks, playlist.name)
             target = destinations.get(playlist.name)
-            existing = self._destination.playlist_track_ids(target) if target is not None else []
+            existing = (
+                retry_request(lambda target=target: self._destination.playlist_track_ids(target))
+                if target is not None
+                else []
+            )
             desired = self._desired_playlist_tracks(matched, existing)
             changed = target is None or existing != desired
             if not self._dry_run and changed:
@@ -114,27 +121,35 @@ class Migrator:
                         None,
                         None,
                     )
-                    target = self._destination.create_playlist(playlist.name, playlist.description)
+                    target = retry_request(
+                        lambda playlist=playlist: self._destination.create_playlist(
+                            playlist.name, playlist.description
+                        )
+                    )
                     destinations[playlist.name] = target
                 self._progress(
                     f"Syncing {self._destination.display_name} playlist {playlist.name}",
                     None,
                     None,
                 )
-                self._destination.sync_playlist(target, desired)
+                retry_request(
+                    lambda target=target, desired=desired: self._destination.sync_playlist(
+                        target, desired
+                    )
+                )
             report.collections.append(
                 CollectionReport(playlist.name, len(tracks), len(matched), unmatched, changed)
             )
 
         if include_saved:
             collection_name = self._source.saved_tracks_name
-            tracks = list(self._source.saved_tracks())
+            tracks = retry_request(lambda: list(self._source.saved_tracks()))
             matched, unmatched = self._match_tracks(tracks, collection_name)
             changed = bool(matched)
             if not self._dry_run:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
-                changed = self._destination.add_favorites(matched) > 0
+                changed = retry_request(lambda: self._destination.add_favorites(matched)) > 0
             report.collections.append(
                 CollectionReport(
                     collection_name,
@@ -177,10 +192,10 @@ class Migrator:
         cached = self._cache.get(track.source_id)
         if cached:
             return TrackMatch(track, cached, 1.0, "cache")
-        self._rate_limiter.wait()
-        result = best_match(
-            track, self._destination.search_tracks(track, before_request=self._rate_limiter.wait)
+        candidates = retry_request(
+            lambda: self._destination.search_tracks(track, before_request=self._rate_limiter.wait)
         )
+        result = best_match(track, candidates)
         if result.destination_id:
             self._cache.put(track.source_id, result.destination_id)
         return result
