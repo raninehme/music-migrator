@@ -142,13 +142,13 @@ Reset saved logins without deleting configuration, caches, or reports:
 ```bash
 music-migrator --profile YOUR_PROFILE --reset-auth
 ```
+
 Recheck every track instead of using confirmed cached matches:
 
 ```bash
 music-migrator --profile YOUR_PROFILE --from spotify --to tidal \
   --mode replace --refresh-matches --dry-run
 ```
-
 
 Use `--quiet` for the final report only, `--debug` for tracebacks, and `--help` for every option.
 
