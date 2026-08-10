@@ -8,8 +8,7 @@ from threading import Lock
 from music_migrator.core.cache import MatchCache
 from music_migrator.core.matching import best_match
 from music_migrator.core.models import Track, TrackMatch
-from music_migrator.services.spotify.service import SpotifySource
-from music_migrator.services.tidal.service import TidalDestination
+from music_migrator.services.base import MusicDestination, MusicSource
 
 
 @dataclass(slots=True)
@@ -56,8 +55,8 @@ class RateLimiter:
 class Migrator:
     def __init__(
         self,
-        spotify: SpotifySource,
-        tidal: TidalDestination,
+        source: MusicSource,
+        destination: MusicDestination,
         cache: MatchCache,
         *,
         dry_run: bool,
@@ -65,8 +64,8 @@ class Migrator:
         rate_limit: int = 10,
         progress: Callable[[str, int | None, int | None], None] | None = None,
     ):
-        self._spotify = spotify
-        self._tidal = tidal
+        self._source = source
+        self._destination = destination
         self._cache = cache
         self._dry_run = dry_run
         self._max_concurrency = max_concurrency
@@ -76,36 +75,36 @@ class Migrator:
     def migrate(self, playlist_ids: list[str] | None, include_saved: bool) -> MigrationReport:
         self._progress("Loading Spotify playlists", None, None)
         source_playlists = (
-            [self._spotify.playlist(item) for item in playlist_ids]
+            [self._source.playlist(item) for item in playlist_ids]
             if playlist_ids
-            else list(self._spotify.playlists())
+            else list(self._source.playlists())
         )
         self._progress("Loading TIDAL playlists", None, None)
-        destinations = self._tidal.playlists_by_name()
+        destinations = self._destination.playlists_by_name()
         report = MigrationReport()
         for playlist in source_playlists:
-            tracks = list(self._spotify.playlist_tracks(playlist.source_id))
+            tracks = list(self._source.playlist_tracks(playlist.source_id))
             matched, unmatched = self._match_tracks(tracks, playlist.name)
             target = destinations.get(playlist.name)
-            changed = target is None or self._tidal.playlist_track_ids(target) != matched
+            changed = target is None or self._destination.playlist_track_ids(target) != matched
             if not self._dry_run and changed:
                 if target is None:
                     self._progress(f"Creating TIDAL playlist {playlist.name}", None, None)
-                    target = self._tidal.create_playlist(playlist.name, playlist.description)
+                    target = self._destination.create_playlist(playlist.name, playlist.description)
                     destinations[playlist.name] = target
                 self._progress(f"Syncing TIDAL playlist {playlist.name}", None, None)
-                self._tidal.sync_playlist(target, matched)
+                self._destination.sync_playlist(target, matched)
             report.collections.append(
                 CollectionReport(playlist.name, len(tracks), len(matched), unmatched, changed)
             )
 
         if include_saved:
-            tracks = list(self._spotify.saved_tracks())
+            tracks = list(self._source.saved_tracks())
             matched, unmatched = self._match_tracks(tracks, "Liked Songs")
             changed = bool(matched)
             if not self._dry_run:
                 self._progress("Syncing TIDAL favorites", None, None)
-                changed = self._tidal.add_favorites(matched) > 0
+                changed = self._destination.add_favorites(matched) > 0
             report.collections.append(
                 CollectionReport("Liked Songs", len(tracks), len(matched), unmatched, changed)
             )
@@ -137,7 +136,7 @@ class Migrator:
             return TrackMatch(track, cached, 1.0, "cache")
         self._rate_limiter.wait()
         result = best_match(
-            track, self._tidal.search_tracks(track, before_request=self._rate_limiter.wait)
+            track, self._destination.search_tracks(track, before_request=self._rate_limiter.wait)
         )
         if result.destination_id:
             self._cache.put(track.source_id, result.destination_id)
