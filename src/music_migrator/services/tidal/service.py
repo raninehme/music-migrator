@@ -7,6 +7,7 @@ import requests
 import tidalapi
 
 from music_migrator.core.models import Track
+from music_migrator.services.tidal.auth import create_tidal_session
 
 T = TypeVar("T")
 
@@ -19,10 +20,7 @@ class TidalDestination:
 
     @classmethod
     def authenticate(cls, session_path: Path = Path(".tidal-session.json")) -> "TidalDestination":
-        session = tidalapi.Session()
-        if not session.login_session_file(session_path):
-            raise RuntimeError("TIDAL authentication failed")
-        return cls(session)
+        return cls(create_tidal_session(session_path))
 
     def playlists_by_name(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
