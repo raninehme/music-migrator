@@ -57,3 +57,41 @@ def test_matches_release_suffix_and_primary_artist_credit():
 
     assert result.destination_id == "tidal"
     assert result.confidence > 0.9
+
+
+def test_matches_spaced_slash_title_variant():
+    source = Track(
+        "spotify",
+        "Hard Times",
+        ("The Human League",),
+        "Pride – Music From And Inspired By The Motion Picture",
+        294,
+    )
+    candidate = Track(
+        "tidal",
+        "Hard Times / Love Action",
+        ("The Human League",),
+        "Fascination!",
+        297,
+    )
+
+    assert best_match(source, [candidate]).destination_id == "tidal"
+
+
+def test_matches_solo_and_band_artist_credits():
+    source = Track(
+        "spotify",
+        "Are You Ready To Be Heartbroken?",
+        ("Lloyd Cole and the Commotions",),
+        "Pride – Music From And Inspired By The Motion Picture",
+        185,
+    )
+    candidate = Track(
+        "tidal",
+        "Are You Ready To Be Heartbroken?",
+        ("Lloyd Cole",),
+        "Rattlesnakes",
+        187,
+    )
+
+    assert best_match(source, [candidate]).destination_id == "tidal"
