@@ -12,6 +12,8 @@ T = TypeVar("T")
 
 
 class TidalDestination:
+    display_name = "TIDAL"
+
     def __init__(self, session: tidalapi.Session):
         self._session = session
 
