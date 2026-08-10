@@ -1,15 +1,18 @@
 # music-migrator
 
-Move playlists and saved tracks between Spotify and TIDAL in either direction with safe previews, concurrent matching, isolated profiles, and useful migration reports.
+music-migrator copies playlists and saved tracks between Spotify and TIDAL. It reads the source library, finds the closest recording in the destination catalog, preserves playlist order, and only writes changes when `--apply` is explicit.
+
+It migrates catalog references, not audio files. Use a dry run first to review match counts and tracks that could not be found.
 
 ## Features
 
-- Migrates Spotify to TIDAL and TIDAL to Spotify
-- Migrates playlists plus Spotify Liked Songs or TIDAL favorites
-- Finds reliable matches while preserving playlist order
-- Supports fast concurrent searches with progress tracking
-- Provides explicit preview and apply modes
-- Keeps accounts, route-specific caches, logs, and reports isolated by profile
+- Supports Spotify to TIDAL and TIDAL to Spotify
+- Migrates playlists, Spotify Liked Songs, and TIDAL favorites
+- Matches by ISRC first, then title, artists, album, and duration
+- Preserves playlist order and updates existing destination playlists
+- Searches concurrently with configurable worker and request limits
+- Provides explicit `--dry-run` and `--apply` modes
+- Isolates accounts, caches, logs, and reports by profile and direction
 
 ## Requirements
 
@@ -17,47 +20,25 @@ Move playlists and saved tracks between Spotify and TIDAL in either direction wi
 - A Spotify account and [Spotify Developer application](https://developer.spotify.com/dashboard)
 - A TIDAL account
 
-Check your Python version with:
-
-```bash
-python --version
-```
-
 ## Installation
 
-### Install directly with pip
+Install directly with pip:
 
 ```bash
 python -m pip install git+https://github.com/raninehme/music-migrator.git
 ```
 
-### Install in a virtual environment
-
-A virtual environment is recommended because it keeps music-migrator and its dependencies isolated.
+Or use a virtual environment:
 
 ```bash
 python -m venv .venv
-```
-
-Activate it on Linux, macOS, or WSL:
-
-```bash
-source .venv/bin/activate
-```
-
-Or activate it on Windows PowerShell:
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-Then install music-migrator:
-
-```bash
+source .venv/bin/activate  # Linux, macOS, or WSL
 python -m pip install git+https://github.com/raninehme/music-migrator.git
 ```
 
-To install an editable checkout for development:
+On Windows PowerShell, activate it with `.venv\Scripts\Activate.ps1`.
+
+For an editable development install:
 
 ```bash
 git clone https://github.com/raninehme/music-migrator.git
@@ -224,46 +205,15 @@ The unmatched CSV contains source ID, title, artists, album, and ISRC. A success
 
 ## Troubleshooting
 
-### The browser opens but authentication does not finish
+- **Authentication does not finish:** Confirm the Spotify redirect URI is exactly `http://127.0.0.1:8888/callback` and that port 8888 is available.
+- **Wrong account opens:** Reset the profile sessions and sign in again:
 
-Confirm the Spotify application uses `http://127.0.0.1:8888/callback` exactly. If port 8888 is already occupied, identify the process before stopping it.
+  ```bash
+  music-migrator --profile YOUR_PROFILE --reset-auth
+  ```
 
-Linux or WSL:
-
-```bash
-ss -ltnp 'sport = :8888'
-```
-
-macOS:
-
-```bash
-lsof -nP -iTCP:8888 -sTCP:LISTEN
-```
-
-Windows PowerShell:
-
-```powershell
-Get-NetTCPConnection -LocalPort 8888 -State Listen
-```
-
-Once you have confirmed the process is stale, stop it using the appropriate system tool and retry the migration.
-
-### The wrong account opens
-
-Reset the selected profile, then run it again and sign in with the intended Spotify and TIDAL accounts:
-
-```bash
-music-migrator --profile YOUR_PROFILE --reset-auth
-music-migrator --profile YOUR_PROFILE --dry-run
-```
-
-### Searches are throttled or unstable
-
-Reduce `max_concurrency` and `rate_limit` in the profile's `config.yml`, then rerun. Confirmed cached matches will be reused.
-
-### Some tracks remain unmatched
-
-Check the selected route's `reports/<source>-to-<destination>/unmatched.csv`. Editions, remasters, regional catalog differences, and unavailable releases can prevent a reliable automatic match.
+- **Searches are throttled:** Lower `max_concurrency` and `rate_limit` in the profile's `config.yml`.
+- **Tracks remain unmatched:** Check `reports/<source>-to-<destination>/unmatched.csv`. Editions, regional availability, and catalog differences can prevent a reliable match.
 
 ## Development
 
