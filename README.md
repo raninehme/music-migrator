@@ -1,14 +1,15 @@
 # music-migrator
 
-Move Spotify playlists and Liked Songs to TIDAL with safe previews, concurrent matching, isolated account profiles, and useful migration reports.
+Move playlists and saved tracks between Spotify and TIDAL in either direction with safe previews, concurrent matching, isolated profiles, and useful migration reports.
 
 ## Features
 
-- Migrates Spotify playlists and Liked Songs to TIDAL
+- Migrates Spotify to TIDAL and TIDAL to Spotify
+- Migrates playlists plus Spotify Liked Songs or TIDAL favorites
 - Finds reliable matches while preserving playlist order
 - Supports fast concurrent searches with progress tracking
 - Provides explicit preview and apply modes
-- Keeps accounts, caches, logs, and reports isolated by profile
+- Keeps accounts, route-specific caches, logs, and reports isolated by profile
 
 ## Requirements
 
@@ -80,19 +81,26 @@ Create a profile and enter the Spotify client ID and secret when prompted:
 music-migrator --setup YOUR_PROFILE
 ```
 
-Preview the migration:
+Preview Spotify to TIDAL. This is the default route, so the service flags are optional:
 
 ```bash
-music-migrator --profile YOUR_PROFILE --dry-run
+music-migrator --profile YOUR_PROFILE --from spotify --to tidal --dry-run
 ```
 
 Review the summary and unmatched report, then apply the migration:
 
 ```bash
-music-migrator --profile YOUR_PROFILE --apply
+music-migrator --profile YOUR_PROFILE --from spotify --to tidal --apply
 ```
 
-The first migration run opens Spotify and TIDAL authentication in your configured browser.
+To migrate in the other direction:
+
+```bash
+music-migrator --profile YOUR_PROFILE --from tidal --to spotify --dry-run
+music-migrator --profile YOUR_PROFILE --from tidal --to spotify --apply
+```
+
+The first run for a route opens Spotify and TIDAL authentication in your configured browser. Always review a dry run before applying changes.
 
 ## Configuration
 
@@ -111,7 +119,7 @@ max_concurrency: 10
 rate_limit: 10
 ```
 
-`max_concurrency` controls simultaneous TIDAL searches. `rate_limit` limits how many search requests may start per second. The defaults are a practical starting point; lower them if TIDAL begins rejecting requests.
+`max_concurrency` controls simultaneous destination searches. `rate_limit` limits how many search requests may start per second. The defaults are a practical starting point; lower them if the destination begins rejecting requests.
 
 Profile data is ignored by Git. Never commit Spotify credentials or saved sessions.
 
@@ -133,11 +141,16 @@ Profile names may contain letters, numbers, underscores, and hyphens. Local stat
         +-- config.yml
         +-- spotify-session.json
         +-- tidal-session.json
-        +-- matches.sqlite3
+        +-- cache/
+        |   +-- spotify-to-tidal.sqlite3
+        |   +-- tidal-to-spotify.sqlite3
         +-- logs/
         |   +-- music-migrator.log
         +-- reports/
-            +-- unmatched.csv
+            +-- spotify-to-tidal/
+            |   +-- unmatched.csv
+            +-- tidal-to-spotify/
+                +-- unmatched.csv
 ```
 
 To remove only a profile's saved logins:
@@ -150,49 +163,60 @@ The profile configuration, match cache, logs, and reports remain available.
 
 ## Migration commands
 
-Preview all playlists and Liked Songs:
+Spotify to TIDAL remains the default route:
 
 ```bash
 music-migrator --profile YOUR_PROFILE --dry-run
-```
-
-Apply all changes:
-
-```bash
 music-migrator --profile YOUR_PROFILE --apply
 ```
 
-Preview selected playlists and skip Liked Songs:
+The equivalent explicit commands are:
+
+```bash
+music-migrator --profile YOUR_PROFILE --from spotify --to tidal --dry-run
+music-migrator --profile YOUR_PROFILE --from spotify --to tidal --apply
+```
+
+For TIDAL to Spotify:
+
+```bash
+music-migrator --profile YOUR_PROFILE --from tidal --to spotify --dry-run
+music-migrator --profile YOUR_PROFILE --from tidal --to spotify --apply
+```
+
+Preview selected source playlists and skip saved tracks:
 
 ```bash
 music-migrator --profile YOUR_PROFILE \
+  --from tidal \
+  --to spotify \
   --dry-run \
-  --playlist SPOTIFY_PLAYLIST_ID \
+  --playlist TIDAL_PLAYLIST_ID \
   --playlist ANOTHER_PLAYLIST_ID \
   --no-saved-tracks
 ```
 
-Use `--quiet` for errors and the final report only. Use `--debug` for detailed diagnostics and tracebacks. Run `music-migrator --help` for the complete CLI reference.
+`--playlist` may be repeated and expects an ID from the selected source service. Use `--quiet` for errors and the final report only. Use `--debug` for detailed diagnostics and tracebacks. Run `music-migrator --help` for the complete CLI reference.
 
 ## Matching and safety
 
-The matcher first tries the recording's ISRC. When an exact identifier is unavailable, it searches TIDAL using normalized title and primary-artist queries, then compares title, artists, album, and duration. Confirmed matches are cached per profile.
+The matcher first tries the recording's ISRC. When an exact identifier is unavailable, it searches the destination service and compares title, artists, album, and duration. Confirmed matches are cached separately for each direction.
 
-Migration mode must be explicit. `--dry-run` authenticates, loads the source library, searches TIDAL, and reports planned changes without modifying the destination. `--apply` is required to create or update playlists and favorites.
+Migration mode must be explicit. `--dry-run` authenticates, loads the source library, searches the destination, and reports planned changes without modifying it. `--apply` is required to create or update playlists and saved tracks.
 
-Tracks without a sufficiently reliable match are omitted instead of inserting a questionable result. They are written to the profile's `reports/unmatched.csv` for review.
+Tracks without a sufficiently reliable match are omitted instead of inserting a questionable result. They are written to the selected route's `reports/<source>-to-<destination>/unmatched.csv`.
 
 ## Logs and reports
 
 Console output shows migration stages and track progress. Each profile also receives a persistent log at `logs/music-migrator.log`. Logs rotate at 5 MiB and retain three backups.
 
-The unmatched CSV contains Spotify ID, title, artists, album, and ISRC. A successful run with no unmatched tracks removes the previous unmatched report so stale results are not mistaken for current ones.
+The unmatched CSV contains source ID, title, artists, album, and ISRC. A successful run with no unmatched tracks removes that route's previous report so stale results are not mistaken for current ones.
 
 ## Behavior and limitations
 
-- Playlist names identify corresponding TIDAL playlists.
-- Duplicate TIDAL playlist names stop the run rather than risk updating the wrong playlist.
-- Existing destination playlists are reordered to match Spotify.
+- Playlist names identify corresponding playlists on the destination service.
+- Duplicate destination playlist names stop the run rather than risk updating the wrong playlist.
+- Existing destination playlists are reordered to match the source.
 - Local Spotify files and podcasts are skipped.
 - Music files are not copied; the tool maps catalog entries between services.
 - Catalog and regional availability differ, so some tracks cannot be migrated automatically.
@@ -239,7 +263,7 @@ Reduce `max_concurrency` and `rate_limit` in the profile's `config.yml`, then re
 
 ### Some tracks remain unmatched
 
-Check the profile's `reports/unmatched.csv`. Editions, remasters, regional catalog differences, and unavailable releases can prevent a reliable automatic match.
+Check the selected route's `reports/<source>-to-<destination>/unmatched.csv`. Editions, remasters, regional catalog differences, and unavailable releases can prevent a reliable automatic match.
 
 ## Development
 
