@@ -100,6 +100,8 @@ class Migrator:
         report = MigrationReport()
         for playlist in source_playlists:
             tracks = list(self._source.playlist_tracks(playlist.source_id))
+            if not tracks:
+                continue
             matched, unmatched = self._match_tracks(tracks, playlist.name)
             target = destinations.get(playlist.name)
             existing = self._destination.playlist_track_ids(target) if target is not None else []

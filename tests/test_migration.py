@@ -64,6 +64,21 @@ def test_progress_uses_service_display_names(tmp_path):
     assert messages == ["Loading Spotify playlists", "Loading TIDAL playlists"]
 
 
+def test_empty_source_playlist_is_skipped(tmp_path):
+    source = Mock()
+    source.playlists.return_value = [Playlist("empty", "Old playlist")]
+    source.playlist_tracks.return_value = []
+    destination = Mock()
+    destination.playlists_by_name.return_value = {}
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        report = Migrator(source, destination, cache, dry_run=False).migrate(None, False)
+
+    assert report.collections == []
+    destination.create_playlist.assert_not_called()
+    destination.sync_playlist.assert_not_called()
+
+
 def test_combine_preserves_destination_tracks_after_source_order(tmp_path):
     source_track = Track("source-1", "Source", ("Artist",), "Album", 180, "ISRC1")
     candidate = Track("target-1", "Source", ("Artist",), "Album", 180, "ISRC1")
@@ -101,17 +116,20 @@ def test_replace_removes_destination_only_tracks(tmp_path):
 
 
 def test_can_select_reverse_playlists_by_name(tmp_path):
+    source_track = Track("source-track", "Song", ("Artist",), "Album", 180, "ISRC1")
+    candidate = Track("target-track", "Song", ("Artist",), "Album", 180, "ISRC1")
     selected = Playlist("selected", "Selected")
     ignored = Playlist("ignored", "Ignored")
     source = Mock()
     source.playlists.return_value = [selected, ignored]
-    source.playlist_tracks.return_value = []
+    source.playlist_tracks.return_value = [source_track]
     destination = Mock()
     destination.playlists_by_name.return_value = {
         "Selected": SimpleNamespace(),
         "Ignored": SimpleNamespace(),
     }
     destination.playlist_track_ids.return_value = []
+    destination.search_tracks.return_value = [candidate]
 
     with MatchCache(tmp_path / "cache.sqlite3") as cache:
         report = Migrator(source, destination, cache, dry_run=True).migrate(
