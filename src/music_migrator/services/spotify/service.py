@@ -230,6 +230,17 @@ class SpotifyDestination:
         self._add_tracks(playlist_id, track_ids[100:])
         return True
 
+    def favorite_track_ids(self) -> set[str]:
+        entries = _pages(
+            lambda offset: self._client.current_user_saved_tracks(limit=50, offset=offset)
+        )
+        ids: set[str] = set()
+        for entry in entries:
+            raw = entry.get("item") or entry.get("track")
+            if raw and raw.get("id"):
+                ids.add(raw["id"])
+        return ids
+
     def add_favorites(self, track_ids: list[str]) -> int:
         added = 0
         for start in range(0, len(track_ids), SPOTIFY_LIBRARY_BATCH_SIZE):

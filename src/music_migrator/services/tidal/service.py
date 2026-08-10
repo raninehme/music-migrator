@@ -156,13 +156,13 @@ class TidalDestination:
         return [str(track.id) for track in playlist.tracks_paginated()]
 
     def add_favorites(self, track_ids: list[str]) -> int:
-        existing = self._favorite_track_ids()
+        existing = self.favorite_track_ids()
         missing = [track_id for track_id in track_ids if track_id not in existing]
         for start in range(0, len(missing), 50):
             self._session.user.favorites.add_track(missing[start : start + 50])
         return len(missing)
 
-    def _favorite_track_ids(self) -> set[str]:
+    def favorite_track_ids(self) -> set[str]:
         ids: set[str] = set()
         offset = 0
         while True:

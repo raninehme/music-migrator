@@ -34,3 +34,15 @@ def test_precondition_failure_refreshes_and_retries():
     TidalDestination._retry_precondition(playlist, operation)
     assert operation.call_count == 2
     playlist._reparse.assert_called_once_with()
+
+
+def test_loads_tidal_favorite_track_ids():
+    session = Mock()
+    session.user.favorites.tracks.return_value = [
+        SimpleNamespace(id="one"),
+        SimpleNamespace(id="two"),
+    ]
+
+    result = TidalDestination(session).favorite_track_ids()
+
+    assert result == {"one", "two"}

@@ -145,8 +145,10 @@ class Migrator:
             collection_name = self._source.saved_tracks_name
             tracks = retry_request(lambda: list(self._source.saved_tracks()))
             matched, unmatched = self._match_tracks(tracks, collection_name)
-            changed = bool(matched)
-            if not self._dry_run:
+            if self._dry_run:
+                existing = retry_request(self._destination.favorite_track_ids)
+                changed = any(track_id not in existing for track_id in matched)
+            else:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
                 changed = retry_request(lambda: self._destination.add_favorites(matched)) > 0
