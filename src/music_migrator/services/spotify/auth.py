@@ -8,6 +8,10 @@ from music_migrator.config import SpotifyConfig
 
 SPOTIFY_SOURCE_SCOPES = "playlist-read-private playlist-read-collaborative user-library-read"
 
+SPOTIFY_DESTINATION_SCOPES = (
+    f"{SPOTIFY_SOURCE_SCOPES} playlist-modify-private playlist-modify-public user-library-modify"
+)
+
 
 def create_spotify_client(
     config: SpotifyConfig,
