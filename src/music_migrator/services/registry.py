@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from music_migrator.services.base import MusicDestination, MusicSource
-from music_migrator.services.spotify.service import SpotifySource
+from music_migrator.services.spotify.service import SpotifyDestination, SpotifySource
 from music_migrator.services.tidal.service import TidalDestination, TidalSource
 
 
@@ -15,7 +15,7 @@ class Service:
 
 
 SERVICES = {
-    "spotify": Service(name="spotify", source=SpotifySource),
+    "spotify": Service(name="spotify", source=SpotifySource, destination=SpotifyDestination),
     "tidal": Service(name="tidal", source=TidalSource, destination=TidalDestination),
 }
 
