@@ -28,6 +28,8 @@ def _track_from_tidal(raw: Any) -> Track:
 class TidalSource:
     display_name = "TIDAL"
 
+    saved_tracks_name = "Favorites"
+
     def __init__(self, session: tidalapi.Session):
         self._session = session
 
@@ -69,6 +71,8 @@ class TidalSource:
 
 class TidalDestination:
     display_name = "TIDAL"
+
+    saved_tracks_name = "Favorites"
 
     def __init__(self, session: tidalapi.Session):
         self._session = session

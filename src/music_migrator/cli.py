@@ -12,24 +12,39 @@ from music_migrator import __version__
 from music_migrator.config import MigrationConfig
 from music_migrator.core.cache import MatchCache
 from music_migrator.core.migration import MigrationReport, Migrator
+from music_migrator.core.planning import MigrationRoute, plan_route
 from music_migrator.logging_config import configure_logging
 from music_migrator.profiles import ProfilePaths
-from music_migrator.services.spotify.service import SpotifySource
-from music_migrator.services.tidal.service import TidalDestination
+from music_migrator.services.base import MusicDestination, MusicSource
+from music_migrator.services.registry import SERVICES
 
 logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Migrate Spotify music to TIDAL")
+    parser = argparse.ArgumentParser(description="Move music between streaming services")
     identity = parser.add_mutually_exclusive_group(required=True)
     identity.add_argument("--profile", metavar="NAME")
     identity.add_argument("--setup", metavar="NAME", help="create a new profile configuration")
-    parser.add_argument("--playlist", action="append", default=[], metavar="SPOTIFY_ID")
+    parser.add_argument(
+        "--from",
+        dest="source_service",
+        choices=sorted(SERVICES),
+        default="spotify",
+        help="source service (default: spotify)",
+    )
+    parser.add_argument(
+        "--to",
+        dest="destination_service",
+        choices=sorted(SERVICES),
+        default="tidal",
+        help="destination service (default: tidal)",
+    )
+    parser.add_argument("--playlist", action="append", default=[], metavar="PLAYLIST_ID")
     parser.add_argument("--no-saved-tracks", action="store_true")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="preview changes without writing")
-    mode.add_argument("--apply", action="store_true", help="write changes to TIDAL")
+    mode.add_argument("--apply", action="store_true", help="write changes to the destination")
     parser.add_argument(
         "--reset-auth", action="store_true", help="remove profile login sessions and exit"
     )
@@ -37,6 +52,26 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--debug", action="store_true", help="show debug logs and tracebacks")
     parser.add_argument("--version", action="version", version=__version__)
     return parser
+
+
+def _authenticate_route(
+    route: MigrationRoute,
+    config: MigrationConfig,
+    paths: ProfilePaths,
+) -> tuple[MusicSource, MusicDestination]:
+    source_authenticator = route.source.authenticate_source
+    destination_authenticator = route.destination.authenticate_destination
+    if source_authenticator is None or destination_authenticator is None:
+        raise RuntimeError(f"Route {route.key} is not fully configured")
+
+    logger.info("Authenticating with %s", route.source.name)
+    source = source_authenticator(config, paths.session_for(route.source.name))
+    logger.info("Authenticating with %s", route.destination.name)
+    destination = destination_authenticator(
+        config,
+        paths.session_for(route.destination.name),
+    )
+    return source, destination
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -72,22 +107,23 @@ def main(argv: list[str] | None = None) -> int:
         if not args.dry_run and not args.apply:
             parser.error("choose exactly one migration mode: --dry-run or --apply")
 
+        route = plan_route(args.source_service, args.destination_service)
+        route_paths = paths.for_route(route.key)
         config = MigrationConfig.load(paths.config)
         logger.info(
-            "Starting %s for profile %s with %d workers and %d requests/second",
+            "Starting %s from %s to %s for profile %s with %d workers and %d requests/second",
             "migration" if args.apply else "dry run",
+            route.source.name,
+            route.destination.name,
             profile_name,
             config.max_concurrency,
             config.rate_limit,
         )
-        logger.info("Authenticating with Spotify")
-        spotify = SpotifySource.authenticate(config.spotify, paths.spotify_session)
-        logger.info("Authenticating with TIDAL")
-        tidal = TidalDestination.authenticate(paths.tidal_session)
-        with MatchCache(paths.match_cache) as cache:
+        source, destination = _authenticate_route(route, config, paths)
+        with MatchCache(route_paths.match_cache) as cache:
             report = Migrator(
-                spotify,
-                tidal,
+                source,
+                destination,
                 cache,
                 dry_run=not args.apply,
                 max_concurrency=config.max_concurrency,
@@ -98,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
                 config.include_saved_tracks and not args.no_saved_tracks,
             )
         _print_report(report, dry_run=not args.apply)
-        _write_unmatched(report, paths.unmatched_report)
+        _write_unmatched(report, route_paths.unmatched_report)
         logger.info("Completed in %.1f seconds", time.perf_counter() - started)
         return 0
     except Exception as error:
@@ -147,9 +183,10 @@ def _write_unmatched(report: MigrationReport, path: Path) -> None:
     if not report.unmatched:
         path.unlink(missing_ok=True)
         return
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as output:
         writer = csv.writer(output)
-        writer.writerow(("spotify_id", "title", "artists", "album", "isrc"))
+        writer.writerow(("source_id", "title", "artists", "album", "isrc"))
         seen: set[str] = set()
         for track in report.unmatched:
             if track.source_id in seen:

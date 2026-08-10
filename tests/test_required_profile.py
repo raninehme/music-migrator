@@ -14,5 +14,13 @@ def test_profile_is_parsed():
     assert args.dry_run is True
 
 
+def test_reverse_route_is_parsed():
+    args = build_parser().parse_args(
+        ["--profile", "rani", "--from", "tidal", "--to", "spotify", "--dry-run"]
+    )
+    assert args.source_service == "tidal"
+    assert args.destination_service == "spotify"
+
+
 def test_setup_profile_is_parsed():
     assert build_parser().parse_args(["--setup", "rani"]).setup == "rani"

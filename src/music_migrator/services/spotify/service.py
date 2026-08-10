@@ -46,6 +46,8 @@ def _track_from_spotify(raw: dict[str, Any] | None) -> Track | None:
 class SpotifySource:
     display_name = "Spotify"
 
+    saved_tracks_name = "Liked Songs"
+
     def __init__(self, client: spotipy.Spotify):
         self._client = client
         self._user_id: str | None = None
@@ -123,6 +125,8 @@ class SpotifySource:
 
 class SpotifyDestination:
     display_name = "Spotify"
+
+    saved_tracks_name = "Liked Songs"
 
     def __init__(self, client: spotipy.Spotify):
         self._client = client
