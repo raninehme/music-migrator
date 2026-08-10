@@ -11,6 +11,9 @@ from music_migrator.services.tidal.auth import create_tidal_session
 
 T = TypeVar("T")
 
+TIDAL_PAGE_SIZE = 50
+TIDAL_WRITE_BATCH_SIZE = 50
+
 
 def _track_from_tidal(raw: Any) -> Track:
     artists = tuple(artist.name for artist in getattr(raw, "artists", []) if artist.name)
@@ -61,12 +64,12 @@ class TidalSource:
     def saved_tracks(self) -> Iterator[Track]:
         offset = 0
         while True:
-            page = self._session.user.favorites.tracks(limit=50, offset=offset)
+            page = self._session.user.favorites.tracks(limit=TIDAL_PAGE_SIZE, offset=offset)
             for raw in page:
                 yield _track_from_tidal(raw)
-            if len(page) < 50:
+            if len(page) < TIDAL_PAGE_SIZE:
                 return
-            offset += 50
+            offset += TIDAL_PAGE_SIZE
 
 
 class TidalDestination:
@@ -158,23 +161,23 @@ class TidalDestination:
     def add_favorites(self, track_ids: list[str]) -> int:
         existing = self.favorite_track_ids()
         missing = [track_id for track_id in track_ids if track_id not in existing]
-        for start in range(0, len(missing), 50):
-            self._session.user.favorites.add_track(missing[start : start + 50])
+        for start in range(0, len(missing), TIDAL_WRITE_BATCH_SIZE):
+            self._session.user.favorites.add_track(missing[start : start + TIDAL_WRITE_BATCH_SIZE])
         return len(missing)
 
     def favorite_track_ids(self) -> set[str]:
         ids: set[str] = set()
         offset = 0
         while True:
-            page = self._session.user.favorites.tracks(limit=50, offset=offset)
+            page = self._session.user.favorites.tracks(limit=TIDAL_PAGE_SIZE, offset=offset)
             ids.update(str(track.id) for track in page)
-            if len(page) < 50:
+            if len(page) < TIDAL_PAGE_SIZE:
                 return ids
-            offset += 50
+            offset += TIDAL_PAGE_SIZE
 
     def _add_tracks(self, playlist: Any, track_ids: list[str]) -> None:
-        for start in range(0, len(track_ids), 50):
-            chunk = track_ids[start : start + 50]
+        for start in range(0, len(track_ids), TIDAL_WRITE_BATCH_SIZE):
+            chunk = track_ids[start : start + TIDAL_WRITE_BATCH_SIZE]
             self._retry_precondition(playlist, lambda chunk=chunk: playlist.add(chunk))
 
     @staticmethod

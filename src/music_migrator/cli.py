@@ -9,7 +9,12 @@ from pathlib import Path
 import yaml
 
 from music_migrator import __version__
-from music_migrator.config import MigrationConfig
+from music_migrator.config import (
+    DEFAULT_MAX_CONCURRENCY,
+    DEFAULT_RATE_LIMIT,
+    DEFAULT_REDIRECT_URI,
+    MigrationConfig,
+)
 from music_migrator.core.cache import MatchCache
 from music_migrator.core.migration import MigrationReport, Migrator, PlaylistMode
 from music_migrator.core.models import Track
@@ -301,12 +306,12 @@ def _setup_profile(paths: ProfilePaths, profile_name: str) -> None:
         "spotify": {
             "client_id": client_id,
             "client_secret": client_secret,
-            "redirect_uri": "http://127.0.0.1:8888/callback",
+            "redirect_uri": DEFAULT_REDIRECT_URI,
             "open_browser": True,
         },
         "include_saved_tracks": True,
-        "max_concurrency": 10,
-        "rate_limit": 10,
+        "max_concurrency": DEFAULT_MAX_CONCURRENCY,
+        "rate_limit": DEFAULT_RATE_LIMIT,
     }
     with paths.config.open("x", encoding="utf-8") as output:
         yaml.safe_dump(config, output, sort_keys=False)
