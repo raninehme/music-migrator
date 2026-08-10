@@ -12,6 +12,7 @@ def test_profile_is_parsed():
     args = build_parser().parse_args(["--profile", "rani", "--dry-run"])
     assert args.profile == "rani"
     assert args.dry_run is True
+    assert args.refresh_matches is False
 
 
 def test_reverse_route_is_parsed():
@@ -24,3 +25,9 @@ def test_reverse_route_is_parsed():
 
 def test_setup_profile_is_parsed():
     assert build_parser().parse_args(["--setup", "rani"]).setup == "rani"
+
+
+def test_refresh_matches_is_parsed():
+    args = build_parser().parse_args(["--profile", "rani", "--dry-run", "--refresh-matches"])
+
+    assert args.refresh_matches is True

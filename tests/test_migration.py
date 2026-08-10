@@ -140,3 +140,38 @@ def test_can_select_reverse_playlists_by_name(tmp_path):
 
     assert [item.name for item in report.collections] == ["Selected"]
     source.playlist_tracks.assert_called_once_with("selected")
+
+
+def test_saved_tracks_dry_run_is_unchanged_when_all_favorites_exist(tmp_path):
+    source_track = Track("source", "Song", ("Artist",), "Album", 180, "ISRC")
+    candidate = Track("target", "Song", ("Artist",), "Album", 180, "ISRC")
+    source = Mock(saved_tracks_name="Liked Songs")
+    source.playlists.return_value = []
+    source.saved_tracks.return_value = [source_track]
+    destination = Mock(saved_tracks_name="Favorites")
+    destination.playlists_by_name.return_value = {}
+    destination.search_tracks.return_value = [candidate]
+    destination.favorite_track_ids.return_value = {"target"}
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        report = Migrator(source, destination, cache, dry_run=True).migrate(None, True)
+
+    assert report.collections[0].changed is False
+    destination.add_favorites.assert_not_called()
+
+
+def test_saved_tracks_dry_run_reports_missing_favorites(tmp_path):
+    source_track = Track("source", "Song", ("Artist",), "Album", 180, "ISRC")
+    candidate = Track("target", "Song", ("Artist",), "Album", 180, "ISRC")
+    source = Mock(saved_tracks_name="Liked Songs")
+    source.playlists.return_value = []
+    source.saved_tracks.return_value = [source_track]
+    destination = Mock(saved_tracks_name="Favorites")
+    destination.playlists_by_name.return_value = {}
+    destination.search_tracks.return_value = [candidate]
+    destination.favorite_track_ids.return_value = set()
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        report = Migrator(source, destination, cache, dry_run=True).migrate(None, True)
+
+    assert report.collections[0].changed is True

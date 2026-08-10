@@ -95,3 +95,12 @@ def test_matches_solo_and_band_artist_credits():
     )
 
     assert best_match(source, [candidate]).destination_id == "tidal"
+
+
+def test_rejects_shortened_title_when_duration_is_different():
+    source = Track("spotify", "Song - Remix", ("Artist",), "Remixes", 240)
+    candidate = Track("tidal", "Song", ("Artist",), "Original", 180)
+
+    result = best_match(source, [candidate])
+
+    assert result.destination_id is None

@@ -109,6 +109,18 @@ def test_replaces_different_playlist_contents(mocker):
     client.playlist_add_items.assert_not_called()
 
 
+def test_loads_spotify_favorite_track_ids(mocker):
+    client = mocker.Mock()
+    client.current_user_saved_tracks.return_value = {
+        "items": [{"item": spotify_track("one")}, {"item": spotify_track("two")}],
+        "next": None,
+    }
+
+    result = SpotifyDestination(client).favorite_track_ids()
+
+    assert result == {"one", "two"}
+
+
 def test_adds_only_missing_saved_tracks(mocker):
     client = mocker.Mock()
     client.current_user_saved_tracks_contains.return_value = [True, False, False]

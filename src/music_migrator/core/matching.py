@@ -4,6 +4,8 @@ from difflib import SequenceMatcher
 
 from music_migrator.core.models import Track, TrackMatch
 
+MATCH_VERSION = 2
+
 
 def normalize(value: str | None) -> str:
     if not value:
@@ -29,11 +31,7 @@ def score(source: Track, candidate: Track) -> TrackMatch:
     if source.isrc and candidate.isrc and source.isrc.casefold() == candidate.isrc.casefold():
         return TrackMatch(source, candidate.source_id, 1.0, "ISRC")
 
-    title = max(
-        SequenceMatcher(None, left, right).ratio()
-        for left in _title_variants(source.title)
-        for right in _title_variants(candidate.title)
-    )
+    title = _title_score(source, candidate)
     artists = max(
         SequenceMatcher(None, left, right).ratio()
         for left in _artist_variants(source.artists)
@@ -55,6 +53,26 @@ def best_match(source: Track, candidates: list[Track], threshold: float = 0.78) 
     if result.confidence < threshold:
         return TrackMatch(source, None, result.confidence, "below threshold")
     return result
+
+
+def _title_score(source: Track, candidate: Track) -> float:
+    canonical = SequenceMatcher(
+        None, normalize_title(source.title), normalize_title(candidate.title)
+    ).ratio()
+    variant = max(
+        SequenceMatcher(None, left, right).ratio()
+        for left in _title_variants(source.title)
+        for right in _title_variants(candidate.title)
+    )
+    if variant <= canonical:
+        return canonical
+    if _durations_close(source.duration_seconds, candidate.duration_seconds):
+        return variant
+    return canonical
+
+
+def _durations_close(left: float | None, right: float | None, tolerance: float = 10) -> bool:
+    return left is not None and right is not None and abs(left - right) <= tolerance
 
 
 def _title_variants(value: str) -> set[str]:

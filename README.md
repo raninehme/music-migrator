@@ -143,11 +143,18 @@ Reset saved logins without deleting configuration, caches, or reports:
 music-migrator --profile YOUR_PROFILE --reset-auth
 ```
 
+Recheck every track instead of using confirmed cached matches:
+
+```bash
+music-migrator --profile YOUR_PROFILE --from spotify --to tidal \
+  --mode replace --refresh-matches --dry-run
+```
+
 Use `--quiet` for the final report only, `--debug` for tracebacks, and `--help` for every option.
 
 ## Matching, logs, and reports
 
-The matcher uses ISRC when available, then scores title, artists, album, and duration. Confirmed matches are cached separately for each direction so reruns are faster and consistent.
+The matcher uses ISRC when available, then scores title, artists, album, and duration. Confirmed matches are cached separately for each direction, and matcher updates automatically recheck older cache entries.
 
 Tracks without a reliable match are skipped and written to:
 
@@ -173,7 +180,7 @@ Runtime details are written to `.music-migrator/profiles/NAME/logs/music-migrato
 - **Login does not finish:** Confirm the redirect URI is exact and port `8888` is free.
 - **Wrong account opens:** Run `music-migrator --profile YOUR_PROFILE --reset-auth`.
 - **Requests are throttled:** Lower `max_concurrency` and `rate_limit` in `config.yml`.
-- **Tracks are missing:** Review the route's `unmatched.csv` report.
+- **Tracks are missing:** Review the route's `unmatched.csv` report. Add `--refresh-matches` to recheck every cached match.
 
 ## Development
 
