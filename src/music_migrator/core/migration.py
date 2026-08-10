@@ -121,11 +121,7 @@ class Migrator:
                         None,
                         None,
                     )
-                    target = retry_request(
-                        lambda playlist=playlist: self._destination.create_playlist(
-                            playlist.name, playlist.description
-                        )
-                    )
+                    target = self._destination.create_playlist(playlist.name, playlist.description)
                     destinations[playlist.name] = target
                 self._progress(
                     f"Syncing {self._destination.display_name} playlist {playlist.name}",
