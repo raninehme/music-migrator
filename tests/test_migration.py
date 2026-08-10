@@ -64,7 +64,7 @@ def test_progress_uses_service_display_names(tmp_path):
     assert messages == ["Loading Spotify playlists", "Loading TIDAL playlists"]
 
 
-def test_merge_preserves_destination_tracks_after_source_order(tmp_path):
+def test_combine_preserves_destination_tracks_after_source_order(tmp_path):
     source_track = Track("source-1", "Source", ("Artist",), "Album", 180, "ISRC1")
     candidate = Track("target-1", "Source", ("Artist",), "Album", 180, "ISRC1")
     source = Mock()
@@ -77,12 +77,12 @@ def test_merge_preserves_destination_tracks_after_source_order(tmp_path):
     destination.search_tracks.return_value = [candidate]
 
     with MatchCache(tmp_path / "cache.sqlite3") as cache:
-        Migrator(source, destination, cache, dry_run=False, strategy="merge").migrate(None, False)
+        Migrator(source, destination, cache, dry_run=False, mode="combine").migrate(None, False)
 
     destination.sync_playlist.assert_called_once_with(target, ["target-1", "target-only"])
 
 
-def test_mirror_replaces_destination_only_tracks(tmp_path):
+def test_replace_removes_destination_only_tracks(tmp_path):
     source_track = Track("source-1", "Source", ("Artist",), "Album", 180, "ISRC1")
     candidate = Track("target-1", "Source", ("Artist",), "Album", 180, "ISRC1")
     source = Mock()

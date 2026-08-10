@@ -1,13 +1,13 @@
 # music-migrator
 
-music-migrator moves or merges playlists and saved tracks between Spotify and TIDAL. It matches recordings across both catalogs and only writes changes when `--apply` is explicit.
+music-migrator moves or combines playlists and saved tracks between Spotify and TIDAL. It matches recordings across both catalogs and only writes changes when `--apply` is explicit.
 
 It migrates catalog references, not audio files. Use a dry run first to review match counts and tracks that could not be found.
 
 ## Features
 
 - Supports Spotify to TIDAL and TIDAL to Spotify
-- Offers one-way mirroring and safe two-way merging
+- Offers one-way replacement and safe two-way combination
 - Migrates playlists, Spotify Liked Songs, and TIDAL favorites
 - Matches by ISRC first, then title, artists, album, and duration
 - Searches concurrently with configurable worker and request limits
@@ -62,7 +62,7 @@ Create a profile and enter the Spotify client ID and secret when prompted:
 music-migrator --setup YOUR_PROFILE
 ```
 
-Preview the default Spotify to TIDAL mirror:
+Preview the default Spotify to TIDAL replacement:
 
 ```bash
 music-migrator --profile YOUR_PROFILE --dry-run
@@ -142,27 +142,27 @@ music-migrator --profile YOUR_PROFILE --reset-auth
 
 The profile configuration, match cache, logs, and reports remain available.
 
-## Strategies
+## Modes
 
-`mirror` is the default. It makes the destination playlist match the source exactly, including its order. Destination-only playlist tracks can be removed.
+`replace` is the default. It makes the destination playlist match the source exactly, including its order. Destination-only playlist tracks can be removed.
 
 ```bash
-music-migrator --profile YOUR_PROFILE --strategy mirror --dry-run
+music-migrator --profile YOUR_PROFILE --mode replace --dry-run
 ```
 
-`merge` runs in both directions. It keeps tracks found on either service, adds the missing tracks to both, and removes no playlist tracks. The service selected by `--from` supplies the primary playlist order; tracks found only on the other service are appended.
+`combine` runs in both directions. It keeps tracks found on either service, adds the missing tracks to both, and removes no playlist tracks. The service selected by `--from` supplies the primary playlist order; tracks found only on the other service are appended.
 
 ```bash
 music-migrator --profile YOUR_PROFILE \
   --from tidal \
   --to spotify \
-  --strategy merge \
+  --mode combine \
   --dry-run
 ```
 
-After reviewing both directional reports, replace `--dry-run` with `--apply`. Spotify Liked Songs and TIDAL favorites are add-only in either strategy.
+After reviewing both directional reports, replace `--dry-run` with `--apply`. Spotify Liked Songs and TIDAL favorites are add-only in either mode.
 
-To mirror TIDAL to Spotify instead:
+To replace Spotify playlists from TIDAL instead:
 
 ```bash
 music-migrator --profile YOUR_PROFILE --from tidal --to spotify --dry-run
@@ -199,9 +199,9 @@ The unmatched CSV contains source ID, title, artists, album, and ISRC. A success
 ## Behavior and limitations
 
 - Playlist names identify corresponding playlists across services.
-- `mirror` may reorder playlists and remove destination-only playlist tracks.
-- `merge` preserves tracks from both services and uses the selected source's order first.
-- Liked Songs and favorites are add-only; neither strategy removes them.
+- `replace` may reorder playlists and remove destination-only playlist tracks.
+- `combine` preserves tracks from both services and uses the selected source's order first.
+- Liked Songs and favorites are add-only; neither mode removes them.
 - Duplicate playlist names stop the run rather than risk updating the wrong playlist.
 - Local Spotify files and podcasts are skipped.
 - Music files are not copied; the tool maps catalog entries between services.

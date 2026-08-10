@@ -25,7 +25,9 @@ def test_authenticates_reverse_route_with_service_sessions(mocker):
     assert destination is spotify_destination.return_value
 
 
-def test_merge_runs_both_directions_for_the_selected_playlist_names(tmp_path, monkeypatch, mocker):
+def test_combine_runs_both_directions_for_the_selected_playlist_names(
+    tmp_path, monkeypatch, mocker
+):
     monkeypatch.chdir(tmp_path)
     paths = ProfilePaths.for_name("rani")
     paths.prepare()
@@ -51,8 +53,8 @@ def test_merge_runs_both_directions_for_the_selected_playlist_names(tmp_path, mo
             "tidal",
             "--to",
             "spotify",
-            "--strategy",
-            "merge",
+            "--mode",
+            "combine",
             "--dry-run",
             "--playlist",
             "tidal-playlist",
@@ -81,8 +83,8 @@ def test_merge_runs_both_directions_for_the_selected_playlist_names(tmp_path, mo
             "tidal",
             "--to",
             "spotify",
-            "--strategy",
-            "merge",
+            "--mode",
+            "combine",
             "--dry-run",
             "--no-saved-tracks",
         ]
