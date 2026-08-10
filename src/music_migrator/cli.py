@@ -12,6 +12,7 @@ from music_migrator import __version__
 from music_migrator.config import MigrationConfig
 from music_migrator.core.cache import MatchCache
 from music_migrator.core.migration import MigrationReport, Migrator, PlaylistMode
+from music_migrator.core.models import Track
 from music_migrator.core.planning import MigrationRoute, plan_route
 from music_migrator.logging_config import configure_logging
 from music_migrator.profiles import ProfilePaths
@@ -253,14 +254,26 @@ def _write_unmatched(report: MigrationReport, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as output:
         writer = csv.writer(output)
-        writer.writerow(("source_id", "title", "artists", "album", "isrc"))
-        seen: set[str] = set()
-        for track in report.unmatched:
-            if track.source_id in seen:
-                continue
-            seen.add(track.source_id)
+        writer.writerow(("source_collections", "source_id", "title", "artists", "album", "isrc"))
+        tracks: dict[str, Track] = {}
+        collections: dict[str, list[str]] = {}
+        for collection in report.collections:
+            for track in collection.unmatched:
+                tracks.setdefault(track.source_id, track)
+                names = collections.setdefault(track.source_id, [])
+                if collection.name not in names:
+                    names.append(collection.name)
+
+        for source_id, track in tracks.items():
             writer.writerow(
-                (track.source_id, track.title, "; ".join(track.artists), track.album, track.isrc)
+                (
+                    "; ".join(collections[source_id]),
+                    track.source_id,
+                    track.title,
+                    "; ".join(track.artists),
+                    track.album,
+                    track.isrc,
+                )
             )
     logger.warning("Unmatched tracks written to %s", path)
 

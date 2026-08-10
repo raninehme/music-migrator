@@ -24,6 +24,7 @@ def test_unmatched_report_deduplicates_source_tracks(tmp_path):
     with output.open(encoding="utf-8", newline="") as source:
         rows = list(csv.DictReader(source))
     assert len(rows) == 1
+    assert rows[0]["source_collections"] == "One; Two"
     assert rows[0]["source_id"] == "spotify-1"
 
 
