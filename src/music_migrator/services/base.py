@@ -7,6 +7,8 @@ from music_migrator.core.models import Playlist, Track
 class MusicSource(Protocol):
     """Read playlists and saved tracks from a music service."""
 
+    display_name: str
+
     def playlists(self) -> Iterable[Playlist]: ...
 
     def playlist(self, playlist_id: str) -> Playlist: ...
@@ -18,6 +20,8 @@ class MusicSource(Protocol):
 
 class MusicDestination(Protocol):
     """Search and update playlists and favorites on a music service."""
+
+    display_name: str
 
     def playlists_by_name(self) -> Mapping[str, Any]: ...
 

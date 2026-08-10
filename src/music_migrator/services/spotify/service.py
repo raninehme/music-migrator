@@ -13,6 +13,8 @@ SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative user-library
 
 
 class SpotifySource:
+    display_name = "Spotify"
+
     def __init__(self, client: spotipy.Spotify):
         self._client = client
         self._user_id: str | None = None

@@ -43,3 +43,22 @@ def test_apply_creates_and_syncs_playlist(tmp_path):
 
     tidal.create_playlist.assert_called_once_with("Mix", "Description")
     tidal.sync_playlist.assert_called_once_with(target, ["t1"])
+
+
+def test_progress_uses_service_display_names(tmp_path):
+    source = Mock(display_name="Spotify")
+    destination = Mock(display_name="TIDAL")
+    source.playlists.return_value = []
+    destination.playlists_by_name.return_value = {}
+    messages = []
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        Migrator(
+            source,
+            destination,
+            cache,
+            dry_run=True,
+            progress=lambda label, *_: messages.append(label),
+        ).migrate(None, False)
+
+    assert messages == ["Loading Spotify playlists", "Loading TIDAL playlists"]
