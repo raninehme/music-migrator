@@ -11,7 +11,7 @@ import yaml
 from music_migrator import __version__
 from music_migrator.config import MigrationConfig
 from music_migrator.core.cache import MatchCache
-from music_migrator.core.migration import MigrationReport, MigrationStrategy, Migrator
+from music_migrator.core.migration import MigrationReport, Migrator, PlaylistMode
 from music_migrator.core.planning import MigrationRoute, plan_route
 from music_migrator.logging_config import configure_logging
 from music_migrator.profiles import ProfilePaths
@@ -46,11 +46,10 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--dry-run", action="store_true", help="preview changes without writing")
     mode.add_argument("--apply", action="store_true", help="write changes to the destination")
     parser.add_argument(
-        "--strategy",
-        choices=("mirror", "merge"),
-        default="mirror",
-        help="mirror the source or merge both services without deleting playlist tracks "
-        "(default: mirror)",
+        "--mode",
+        choices=("replace", "combine"),
+        default="replace",
+        help="replace destination playlists or combine both services (default: replace)",
     )
     parser.add_argument(
         "--reset-auth", action="store_true", help="remove profile login sessions and exit"
@@ -87,7 +86,7 @@ def _run_route(
     paths: ProfilePaths,
     *,
     dry_run: bool,
-    strategy: MigrationStrategy,
+    mode: PlaylistMode,
     playlist_ids: list[str] | None,
     playlist_names: set[str] | None,
     include_saved: bool,
@@ -101,7 +100,7 @@ def _run_route(
             destination,
             cache,
             dry_run=dry_run,
-            strategy=strategy,
+            mode=mode,
             max_concurrency=config.max_concurrency,
             rate_limit=config.rate_limit,
             progress=ConsoleProgress(quiet=quiet),
@@ -150,10 +149,10 @@ def main(argv: list[str] | None = None) -> int:
         route = plan_route(args.source_service, args.destination_service)
         config = MigrationConfig.load(paths.config)
         logger.info(
-            "Starting %s using %s strategy from %s to %s for profile %s with %d workers "
+            "Starting %s using %s mode from %s to %s for profile %s with %d workers "
             "and %d requests/second",
             "migration" if args.apply else "dry run",
-            args.strategy,
+            args.mode,
             route.source.name,
             route.destination.name,
             profile_name,
@@ -166,14 +165,14 @@ def main(argv: list[str] | None = None) -> int:
             config,
             paths,
             dry_run=not args.apply,
-            strategy=args.strategy,
+            mode=args.mode,
             playlist_ids=args.playlist or None,
             playlist_names=None,
             include_saved=include_saved,
             quiet=args.quiet,
         )
         reports = [(route, report)]
-        if args.strategy == "merge":
+        if args.mode == "combine":
             reverse_route = plan_route(route.destination.name, route.source.name)
             playlist_names = (
                 {item.name for item in report.collections if not item.saved}
@@ -185,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
                 config,
                 paths,
                 dry_run=not args.apply,
-                strategy="merge",
+                mode="combine",
                 playlist_ids=None,
                 playlist_names=playlist_names,
                 include_saved=include_saved,

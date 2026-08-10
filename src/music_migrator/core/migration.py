@@ -11,7 +11,7 @@ from music_migrator.core.matching import best_match
 from music_migrator.core.models import Track, TrackMatch
 from music_migrator.services.base import MusicDestination, MusicSource
 
-MigrationStrategy = Literal["merge", "mirror"]
+PlaylistMode = Literal["combine", "replace"]
 
 
 @dataclass(slots=True)
@@ -64,7 +64,7 @@ class Migrator:
         cache: MatchCache,
         *,
         dry_run: bool,
-        strategy: MigrationStrategy = "mirror",
+        mode: PlaylistMode = "replace",
         max_concurrency: int = 10,
         rate_limit: int = 10,
         progress: Callable[[str, int | None, int | None], None] | None = None,
@@ -73,9 +73,9 @@ class Migrator:
         self._destination = destination
         self._cache = cache
         self._dry_run = dry_run
-        if strategy not in ("merge", "mirror"):
-            raise ValueError(f"unknown migration strategy: {strategy}")
-        self._strategy = strategy
+        if mode not in ("combine", "replace"):
+            raise ValueError(f"unknown migration mode: {mode}")
+        self._mode = mode
         self._max_concurrency = max_concurrency
         self._rate_limiter = RateLimiter(rate_limit)
         self._progress = progress or (lambda _label, _current, _total: None)
@@ -146,7 +146,7 @@ class Migrator:
         return report
 
     def _desired_playlist_tracks(self, matched: list[str], existing: list[str]) -> list[str]:
-        if self._strategy == "mirror":
+        if self._mode == "replace":
             return matched
         matched_ids = set(matched)
         return [*matched, *(track_id for track_id in existing if track_id not in matched_ids)]
