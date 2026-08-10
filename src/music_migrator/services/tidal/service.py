@@ -1,15 +1,70 @@
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, TypeVar
 
 import requests
 import tidalapi
 
-from music_migrator.core.models import Track
+from music_migrator.core.models import Playlist, Track
 from music_migrator.services.tidal.auth import create_tidal_session
 
 T = TypeVar("T")
+
+
+def _track_from_tidal(raw: Any) -> Track:
+    artists = tuple(artist.name for artist in getattr(raw, "artists", []) if artist.name)
+    album = getattr(getattr(raw, "album", None), "name", None)
+    return Track(
+        source_id=str(raw.id),
+        title=raw.name,
+        artists=artists,
+        album=album,
+        duration_seconds=getattr(raw, "duration", None),
+        isrc=getattr(raw, "isrc", None),
+    )
+
+
+class TidalSource:
+    display_name = "TIDAL"
+
+    def __init__(self, session: tidalapi.Session):
+        self._session = session
+
+    @classmethod
+    def authenticate(cls, session_path: Path = Path(".tidal-session.json")) -> "TidalSource":
+        return cls(create_tidal_session(session_path))
+
+    def playlists(self) -> Iterator[Playlist]:
+        for raw in self._session.user.playlists():
+            yield Playlist(
+                source_id=str(raw.id),
+                name=raw.name,
+                description=getattr(raw, "description", "") or "",
+            )
+
+    def playlist(self, playlist_id: str) -> Playlist:
+        raw = self._session.playlist(playlist_id)
+        return Playlist(
+            source_id=str(raw.id),
+            name=raw.name,
+            description=getattr(raw, "description", "") or "",
+        )
+
+    def playlist_tracks(self, playlist_id: str) -> Iterator[Track]:
+        playlist = self._session.playlist(playlist_id)
+        for raw in playlist.tracks_paginated():
+            yield _track_from_tidal(raw)
+
+    def saved_tracks(self) -> Iterator[Track]:
+        offset = 0
+        while True:
+            page = self._session.user.favorites.tracks(limit=50, offset=offset)
+            for raw in page:
+                yield _track_from_tidal(raw)
+            if len(page) < 50:
+                return
+            offset += 50
 
 
 class TidalDestination:
@@ -49,7 +104,7 @@ class TidalDestination:
                 before_request()
             results = self._session.search(query, models=[tidalapi.Track], limit=limit)
             for raw in results.get("tracks", []):
-                candidate = self._to_track(raw)
+                candidate = _track_from_tidal(raw)
                 candidates[candidate.source_id] = candidate
             if source.isrc and any(
                 item.isrc and item.isrc.casefold() == source.isrc.casefold()
@@ -128,16 +183,3 @@ class TidalDestination:
                     raise
                 playlist._reparse()
         raise AssertionError("unreachable")
-
-    @staticmethod
-    def _to_track(raw: Any) -> Track:
-        artists = tuple(artist.name for artist in getattr(raw, "artists", []) if artist.name)
-        album = getattr(getattr(raw, "album", None), "name", None)
-        return Track(
-            source_id=str(raw.id),
-            title=raw.name,
-            artists=artists,
-            album=album,
-            duration_seconds=getattr(raw, "duration", None),
-            isrc=getattr(raw, "isrc", None),
-        )

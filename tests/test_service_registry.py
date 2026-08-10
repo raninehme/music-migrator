@@ -2,7 +2,7 @@ import pytest
 
 from music_migrator.services.registry import get_service
 from music_migrator.services.spotify.service import SpotifySource
-from music_migrator.services.tidal.service import TidalDestination
+from music_migrator.services.tidal.service import TidalDestination, TidalSource
 
 
 def test_registry_exposes_current_service_capabilities():
@@ -11,7 +11,7 @@ def test_registry_exposes_current_service_capabilities():
 
     assert spotify.source is SpotifySource
     assert spotify.destination is None
-    assert tidal.source is None
+    assert tidal.source is TidalSource
     assert tidal.destination is TidalDestination
 
 
