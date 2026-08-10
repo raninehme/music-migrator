@@ -38,7 +38,7 @@ def test_applies_tidal_playlist_to_spotify(tmp_path, mocker):
     spotify_client.current_user.return_value = {"id": "me"}
     spotify_client.current_user_playlists.return_value = {"items": [], "next": None}
     spotify_client.search.return_value = {"tracks": {"items": [spotify_track]}}
-    spotify_client.user_playlist_create.return_value = {"id": "spotify-playlist"}
+    spotify_client.current_user_playlist_create.return_value = {"id": "spotify-playlist"}
     spotify_client.playlist_items.return_value = {"items": [], "next": None}
 
     with MatchCache(tmp_path / "matches.sqlite3") as cache:
@@ -50,8 +50,7 @@ def test_applies_tidal_playlist_to_spotify(tmp_path, mocker):
         ).migrate(None, False)
 
     assert report.matched == 1
-    spotify_client.user_playlist_create.assert_called_once_with(
-        "me",
+    spotify_client.current_user_playlist_create.assert_called_once_with(
         "Mix",
         public=False,
         description="Description",
