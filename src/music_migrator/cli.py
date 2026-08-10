@@ -175,7 +175,11 @@ def main(argv: list[str] | None = None) -> int:
         reports = [(route, report)]
         if args.strategy == "merge":
             reverse_route = plan_route(route.destination.name, route.source.name)
-            playlist_names = {item.name for item in report.collections if not item.saved}
+            playlist_names = (
+                {item.name for item in report.collections if not item.saved}
+                if args.playlist
+                else None
+            )
             reverse_report = _run_route(
                 reverse_route,
                 config,

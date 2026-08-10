@@ -69,3 +69,25 @@ def test_merge_runs_both_directions_for_the_selected_playlist_names(tmp_path, mo
     assert reverse.args[0].key == "spotify-to-tidal"
     assert reverse.kwargs["playlist_ids"] is None
     assert reverse.kwargs["playlist_names"] == {"Mix"}
+
+    run_route.reset_mock()
+    run_route.side_effect = [forward_report, reverse_report]
+
+    result = main(
+        [
+            "--profile",
+            "rani",
+            "--from",
+            "tidal",
+            "--to",
+            "spotify",
+            "--strategy",
+            "merge",
+            "--dry-run",
+            "--no-saved-tracks",
+        ]
+    )
+
+    assert result == 0
+    assert run_route.call_count == 2
+    reverse = run_route.call_args_list[1]
