@@ -58,8 +58,8 @@ def test_lists_only_writable_playlists_and_creates_private_playlist(mocker):
     destination.create_playlist("New", "Description")
 
     assert set(playlists) == {"Owned", "Collab"}
-    client.user_playlist_create.assert_called_once_with(
-        "me", "New", public=False, description="Description"
+    client.current_user_playlist_create.assert_called_once_with(
+        "New", public=False, description="Description"
     )
 
 
@@ -70,7 +70,7 @@ def test_searches_by_isrc_before_text(mocker):
 
     tracks = SpotifyDestination(client).search_tracks(source)
 
-    client.search.assert_called_once_with(q="isrc:TEST123", type="track", limit=20)
+    client.search.assert_called_once_with(q="isrc:TEST123", type="track", limit=10)
     assert tracks[0].source_id == "track-1"
     assert tracks[0].duration_seconds == 181
 
@@ -87,6 +87,12 @@ def test_appends_when_existing_playlist_is_prefix(mocker):
 
     assert changed is True
     client.playlist_add_items.assert_called_once_with("playlist-1", ["second"])
+    client.playlist_items.assert_called_once_with(
+        "playlist-1",
+        limit=50,
+        offset=0,
+        additional_types=("track",),
+    )
     client.playlist_replace_items.assert_not_called()
 
 
@@ -111,3 +117,17 @@ def test_adds_only_missing_saved_tracks(mocker):
 
     assert added == 2
     client.current_user_saved_tracks_add.assert_called_once_with(["two", "three"])
+
+
+def test_checks_saved_tracks_in_current_api_batches(mocker):
+    client = mocker.Mock()
+    client.current_user_saved_tracks_contains.side_effect = [
+        [True] * 40,
+        [False],
+    ]
+
+    added = SpotifyDestination(client).add_favorites([str(index) for index in range(41)])
+
+    assert added == 1
+    assert client.current_user_saved_tracks_contains.call_count == 2
+    client.current_user_saved_tracks_add.assert_called_once_with(["40"])

@@ -8,6 +8,10 @@ from music_migrator.config import SpotifyConfig
 from music_migrator.core.models import Playlist, Track
 from music_migrator.services.spotify.auth import SPOTIFY_DESTINATION_SCOPES, create_spotify_client
 
+SPOTIFY_LIBRARY_BATCH_SIZE = 40
+SPOTIFY_PLAYLIST_PAGE_SIZE = 50
+SPOTIFY_SEARCH_LIMIT = 10
+
 
 def _pages(fetch: Callable[[int], dict[str, Any]]) -> Iterator[dict[str, Any]]:
     offset = 0
@@ -164,8 +168,7 @@ class SpotifyDestination:
         return result
 
     def create_playlist(self, name: str, description: str) -> dict[str, Any]:
-        return self._client.user_playlist_create(
-            self._current_user_id(),
+        return self._client.current_user_playlist_create(
             name,
             public=False,
             description=description,
@@ -185,7 +188,8 @@ class SpotifyDestination:
         for query in queries:
             if before_request:
                 before_request()
-            results = self._client.search(q=query, type="track", limit=limit)
+            request_limit = max(1, min(limit, SPOTIFY_SEARCH_LIMIT))
+            results = self._client.search(q=query, type="track", limit=request_limit)
             for raw in (results.get("tracks") or {}).get("items") or []:
                 candidate = _track_from_spotify(raw)
                 if candidate:
@@ -202,7 +206,7 @@ class SpotifyDestination:
         entries = _pages(
             lambda offset: self._client.playlist_items(
                 playlist_id,
-                limit=100,
+                limit=SPOTIFY_PLAYLIST_PAGE_SIZE,
                 offset=offset,
                 additional_types=("track",),
             )
@@ -228,8 +232,8 @@ class SpotifyDestination:
 
     def add_favorites(self, track_ids: list[str]) -> int:
         added = 0
-        for start in range(0, len(track_ids), 50):
-            chunk = track_ids[start : start + 50]
+        for start in range(0, len(track_ids), SPOTIFY_LIBRARY_BATCH_SIZE):
+            chunk = track_ids[start : start + SPOTIFY_LIBRARY_BATCH_SIZE]
             existing = self._client.current_user_saved_tracks_contains(chunk)
             missing = [
                 track_id for track_id, present in zip(chunk, existing, strict=True) if not present
