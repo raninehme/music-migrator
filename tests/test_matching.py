@@ -1,5 +1,5 @@
-from music_migrator.matching import best_match, normalize, score
-from music_migrator.models import Track
+from music_migrator.core.matching import best_match, normalize, score
+from music_migrator.core.models import Track
 
 
 def track(identifier="1", title="Song", artists=("Artist",), duration=180, isrc=None):

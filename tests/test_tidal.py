@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import requests
 
-from music_migrator.tidal import TidalDestination
+from music_migrator.services.tidal.service import TidalDestination
 
 
 def test_playlist_sync_appends_when_existing_is_prefix():

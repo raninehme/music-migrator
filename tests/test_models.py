@@ -1,4 +1,4 @@
-from music_migrator.models import Playlist, Track
+from music_migrator.core.models import Playlist, Track
 
 
 def test_domain_models_are_immutable():
