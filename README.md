@@ -36,14 +36,24 @@ A virtual environment is recommended because it keeps music-migrator and its dep
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate
-python -m pip install git+https://github.com/raninehme/music-migrator.git
 ```
 
-On Windows PowerShell, activate it with:
+Activate it on Linux, macOS, or WSL:
+
+```bash
+source .venv/bin/activate
+```
+
+Or activate it on Windows PowerShell:
 
 ```powershell
 .venv\Scripts\Activate.ps1
+```
+
+Then install music-migrator:
+
+```bash
+python -m pip install git+https://github.com/raninehme/music-migrator.git
 ```
 
 To install an editable checkout for development:
@@ -192,7 +202,27 @@ The unmatched CSV contains Spotify ID, title, artists, album, and ISRC. A succes
 
 ### The browser opens but authentication does not finish
 
-Confirm the Spotify application uses `http://127.0.0.1:8888/callback` exactly. If port 8888 is occupied in WSL, identify the process with `fuser 8888/tcp` and stop only the stale process before retrying.
+Confirm the Spotify application uses `http://127.0.0.1:8888/callback` exactly. If port 8888 is already occupied, identify the process before stopping it.
+
+Linux or WSL:
+
+```bash
+ss -ltnp 'sport = :8888'
+```
+
+macOS:
+
+```bash
+lsof -nP -iTCP:8888 -sTCP:LISTEN
+```
+
+Windows PowerShell:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8888 -State Listen
+```
+
+Once you have confirmed the process is stale, stop it using the appropriate system tool and retry the migration.
 
 ### The wrong account opens
 
