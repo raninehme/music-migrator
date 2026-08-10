@@ -3,13 +3,10 @@ from pathlib import Path
 from typing import Any
 
 import spotipy
-from spotipy.cache_handler import CacheFileHandler
-from spotipy.oauth2 import SpotifyOAuth
 
 from music_migrator.config import SpotifyConfig
 from music_migrator.core.models import Playlist, Track
-
-SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative user-library-read"
+from music_migrator.services.spotify.auth import create_spotify_client
 
 
 class SpotifySource:
@@ -25,17 +22,7 @@ class SpotifySource:
         config: SpotifyConfig,
         session_path: Path = Path(".spotify-session.json"),
     ) -> "SpotifySource":
-        cache = CacheFileHandler(cache_path=str(session_path))
-        oauth = SpotifyOAuth(
-            client_id=config.client_id,
-            client_secret=config.client_secret,
-            redirect_uri=config.redirect_uri,
-            scope=SPOTIFY_SCOPES,
-            open_browser=config.open_browser,
-            cache_handler=cache,
-            requests_timeout=10,
-        )
-        return cls(spotipy.Spotify(auth_manager=oauth, requests_timeout=10))
+        return cls(create_spotify_client(config, session_path))
 
     def playlists(self) -> Iterator[Playlist]:
         user_id = self._current_user_id()
