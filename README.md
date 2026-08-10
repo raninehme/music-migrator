@@ -1,15 +1,15 @@
 # music-migrator
 
-music-migrator copies playlists and saved tracks between Spotify and TIDAL. It reads the source library, finds the closest recording in the destination catalog, preserves playlist order, and only writes changes when `--apply` is explicit.
+music-migrator moves or merges playlists and saved tracks between Spotify and TIDAL. It matches recordings across both catalogs and only writes changes when `--apply` is explicit.
 
 It migrates catalog references, not audio files. Use a dry run first to review match counts and tracks that could not be found.
 
 ## Features
 
 - Supports Spotify to TIDAL and TIDAL to Spotify
+- Offers one-way mirroring and safe two-way merging
 - Migrates playlists, Spotify Liked Songs, and TIDAL favorites
 - Matches by ISRC first, then title, artists, album, and duration
-- Preserves playlist order and updates existing destination playlists
 - Searches concurrently with configurable worker and request limits
 - Provides explicit `--dry-run` and `--apply` modes
 - Isolates accounts, caches, logs, and reports by profile and direction
@@ -62,16 +62,16 @@ Create a profile and enter the Spotify client ID and secret when prompted:
 music-migrator --setup YOUR_PROFILE
 ```
 
-Preview Spotify to TIDAL. This is the default route, so the service flags are optional:
+Preview the default Spotify to TIDAL mirror:
 
 ```bash
-music-migrator --profile YOUR_PROFILE --from spotify --to tidal --dry-run
+music-migrator --profile YOUR_PROFILE --dry-run
 ```
 
-Review the summary and unmatched report, then apply the migration:
+Review the summary and unmatched report before applying it:
 
 ```bash
-music-migrator --profile YOUR_PROFILE --from spotify --to tidal --apply
+music-migrator --profile YOUR_PROFILE --apply
 ```
 
 To migrate in the other direction:
@@ -81,7 +81,7 @@ music-migrator --profile YOUR_PROFILE --from tidal --to spotify --dry-run
 music-migrator --profile YOUR_PROFILE --from tidal --to spotify --apply
 ```
 
-The first run for a route opens Spotify and TIDAL authentication in your configured browser. Always review a dry run before applying changes.
+The first run opens Spotify and TIDAL authentication in your configured browser.
 
 ## Configuration
 
@@ -142,30 +142,33 @@ music-migrator --profile YOUR_PROFILE --reset-auth
 
 The profile configuration, match cache, logs, and reports remain available.
 
-## Migration commands
+## Strategies
 
-Spotify to TIDAL remains the default route:
-
-```bash
-music-migrator --profile YOUR_PROFILE --dry-run
-music-migrator --profile YOUR_PROFILE --apply
-```
-
-The equivalent explicit commands are:
+`mirror` is the default. It makes the destination playlist match the source exactly, including its order. Destination-only playlist tracks can be removed.
 
 ```bash
-music-migrator --profile YOUR_PROFILE --from spotify --to tidal --dry-run
-music-migrator --profile YOUR_PROFILE --from spotify --to tidal --apply
+music-migrator --profile YOUR_PROFILE --strategy mirror --dry-run
 ```
 
-For TIDAL to Spotify:
+`merge` runs in both directions. It keeps tracks found on either service, adds the missing tracks to both, and removes no playlist tracks. The service selected by `--from` supplies the primary playlist order; tracks found only on the other service are appended.
+
+```bash
+music-migrator --profile YOUR_PROFILE \
+  --from tidal \
+  --to spotify \
+  --strategy merge \
+  --dry-run
+```
+
+After reviewing both directional reports, replace `--dry-run` with `--apply`. Spotify Liked Songs and TIDAL favorites are add-only in either strategy.
+
+To mirror TIDAL to Spotify instead:
 
 ```bash
 music-migrator --profile YOUR_PROFILE --from tidal --to spotify --dry-run
-music-migrator --profile YOUR_PROFILE --from tidal --to spotify --apply
 ```
 
-Preview selected source playlists and skip saved tracks:
+Select source playlists by ID and skip saved tracks or favorites:
 
 ```bash
 music-migrator --profile YOUR_PROFILE \
@@ -185,7 +188,7 @@ The matcher first tries the recording's ISRC. When an exact identifier is unavai
 
 Migration mode must be explicit. `--dry-run` authenticates, loads the source library, searches the destination, and reports planned changes without modifying it. `--apply` is required to create or update playlists and saved tracks.
 
-Tracks without a sufficiently reliable match are omitted instead of inserting a questionable result. They are written to the selected route's `reports/<source>-to-<destination>/unmatched.csv`.
+Tracks without a sufficiently reliable match are omitted instead of inserting a questionable result. They are written to each route's `reports/<source>-to-<destination>/unmatched.csv`.
 
 ## Logs and reports
 
@@ -195,9 +198,11 @@ The unmatched CSV contains source ID, title, artists, album, and ISRC. A success
 
 ## Behavior and limitations
 
-- Playlist names identify corresponding playlists on the destination service.
-- Duplicate destination playlist names stop the run rather than risk updating the wrong playlist.
-- Existing destination playlists are reordered to match the source.
+- Playlist names identify corresponding playlists across services.
+- `mirror` may reorder playlists and remove destination-only playlist tracks.
+- `merge` preserves tracks from both services and uses the selected source's order first.
+- Liked Songs and favorites are add-only; neither strategy removes them.
+- Duplicate playlist names stop the run rather than risk updating the wrong playlist.
 - Local Spotify files and podcasts are skipped.
 - Music files are not copied; the tool maps catalog entries between services.
 - Catalog and regional availability differ, so some tracks cannot be migrated automatically.

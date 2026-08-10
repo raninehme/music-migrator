@@ -62,3 +62,63 @@ def test_progress_uses_service_display_names(tmp_path):
         ).migrate(None, False)
 
     assert messages == ["Loading Spotify playlists", "Loading TIDAL playlists"]
+
+
+def test_merge_preserves_destination_tracks_after_source_order(tmp_path):
+    source_track = Track("source-1", "Source", ("Artist",), "Album", 180, "ISRC1")
+    candidate = Track("target-1", "Source", ("Artist",), "Album", 180, "ISRC1")
+    source = Mock()
+    source.playlists.return_value = [Playlist("source-playlist", "Mix")]
+    source.playlist_tracks.return_value = [source_track]
+    destination = Mock()
+    target = SimpleNamespace()
+    destination.playlists_by_name.return_value = {"Mix": target}
+    destination.playlist_track_ids.return_value = ["target-only", "target-1"]
+    destination.search_tracks.return_value = [candidate]
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        Migrator(source, destination, cache, dry_run=False, strategy="merge").migrate(None, False)
+
+    destination.sync_playlist.assert_called_once_with(target, ["target-1", "target-only"])
+
+
+def test_mirror_replaces_destination_only_tracks(tmp_path):
+    source_track = Track("source-1", "Source", ("Artist",), "Album", 180, "ISRC1")
+    candidate = Track("target-1", "Source", ("Artist",), "Album", 180, "ISRC1")
+    source = Mock()
+    source.playlists.return_value = [Playlist("source-playlist", "Mix")]
+    source.playlist_tracks.return_value = [source_track]
+    destination = Mock()
+    target = SimpleNamespace()
+    destination.playlists_by_name.return_value = {"Mix": target}
+    destination.playlist_track_ids.return_value = ["target-only"]
+    destination.search_tracks.return_value = [candidate]
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        Migrator(source, destination, cache, dry_run=False).migrate(None, False)
+
+    destination.sync_playlist.assert_called_once_with(target, ["target-1"])
+
+
+def test_can_select_reverse_playlists_by_name(tmp_path):
+    selected = Playlist("selected", "Selected")
+    ignored = Playlist("ignored", "Ignored")
+    source = Mock()
+    source.playlists.return_value = [selected, ignored]
+    source.playlist_tracks.return_value = []
+    destination = Mock()
+    destination.playlists_by_name.return_value = {
+        "Selected": SimpleNamespace(),
+        "Ignored": SimpleNamespace(),
+    }
+    destination.playlist_track_ids.return_value = []
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        report = Migrator(source, destination, cache, dry_run=True).migrate(
+            None,
+            False,
+            playlist_names={"Selected"},
+        )
+
+    assert [item.name for item in report.collections] == ["Selected"]
+    source.playlist_tracks.assert_called_once_with("selected")
