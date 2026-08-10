@@ -35,3 +35,25 @@ def test_rejects_same_title_from_different_artist():
     source = Track("spotify", "Rabbit Run", ("Eminem",), None, 190)
     candidate = Track("tidal", "Rabbit Run", ("Rainbow Kitten Surprise",), None, 228)
     assert score(source, candidate).confidence < 0.78
+
+
+def test_matches_release_suffix_and_primary_artist_credit():
+    source = Track(
+        "spotify",
+        "Sunflower - Spider-Man: Into the Spider-Verse",
+        ("Post Malone", "Swae Lee"),
+        "Spider-Man: Into the Spider-Verse",
+        158,
+    )
+    candidate = Track(
+        "tidal",
+        "Sunflower",
+        ("Post Malone",),
+        "Hollywood's Bleeding",
+        158,
+    )
+
+    result = best_match(source, [candidate])
+
+    assert result.destination_id == "tidal"
+    assert result.confidence > 0.9

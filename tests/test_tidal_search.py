@@ -55,3 +55,4 @@ def test_simplifies_soundtrack_and_feature_qualifiers():
     simplify = TidalDestination._simplify_title
     assert simplify('Lose Yourself - From "8 Mile" Soundtrack') == "Lose Yourself"
     assert simplify("Favorite Bitch (feat. Ty Dolla $ign)") == "Favorite Bitch"
+    assert simplify("Sunflower - Spider-Man: Into the Spider-Verse") == "Sunflower"

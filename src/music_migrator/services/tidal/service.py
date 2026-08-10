@@ -136,6 +136,7 @@ class TidalDestination:
             title,
             flags=re.IGNORECASE,
         )
+        title = re.sub(r"\s+-\s+.*$", "", title)
         return title.strip()
 
     def sync_playlist(self, playlist: Any, track_ids: list[str]) -> bool:
