@@ -1,4 +1,5 @@
 import pytest
+import requests
 
 from music_migrator.services.tidal.auth import create_tidal_session
 
@@ -23,3 +24,26 @@ def test_create_tidal_session_rejects_failed_login(mocker, tmp_path):
 
     with pytest.raises(RuntimeError, match="TIDAL authentication failed"):
         create_tidal_session(tmp_path / "tidal-session.json")
+
+
+def test_create_tidal_session_reauthenticates_after_unauthorized(mocker, tmp_path):
+    expired = mocker.Mock()
+    fresh = mocker.Mock()
+    response = requests.Response()
+    response.status_code = 401
+    expired.login_session_file.side_effect = requests.HTTPError(response=response)
+    fresh.login_session_file.return_value = True
+    session_type = mocker.patch(
+        "music_migrator.services.tidal.auth.tidalapi.Session",
+        side_effect=[expired, fresh],
+    )
+    session_path = tmp_path / "tidal-session.json"
+    session_path.write_text("expired")
+
+    result = create_tidal_session(session_path)
+
+    assert result is fresh
+    assert not session_path.exists()
+    assert session_type.call_count == 2
+    expired.login_session_file.assert_called_once_with(session_path)
+    fresh.login_session_file.assert_called_once_with(session_path)
