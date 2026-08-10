@@ -55,6 +55,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--reset-auth", action="store_true", help="remove profile login sessions and exit"
     )
+    parser.add_argument(
+        "--refresh-matches",
+        action="store_true",
+        help="discard cached track matches before running",
+    )
     parser.add_argument("--quiet", action="store_true", help="show errors and final report only")
     parser.add_argument("--debug", action="store_true", help="show debug logs and tracebacks")
     parser.add_argument("--version", action="version", version=__version__)
@@ -92,10 +97,13 @@ def _run_route(
     playlist_names: set[str] | None,
     include_saved: bool,
     quiet: bool,
+    refresh_matches: bool,
 ) -> MigrationReport:
     source, destination = _authenticate_route(route, config, paths)
     route_paths = paths.for_route(route.key)
     with MatchCache(route_paths.match_cache) as cache:
+        if refresh_matches:
+            cache.clear()
         report = Migrator(
             source,
             destination,
@@ -128,13 +136,13 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.setup:
-            if args.dry_run or args.apply or args.reset_auth:
+            if args.dry_run or args.apply or args.reset_auth or args.refresh_matches:
                 parser.error("--setup cannot be combined with migration or reset options")
             _setup_profile(paths, args.setup)
             return 0
 
         if args.reset_auth:
-            if args.dry_run or args.apply:
+            if args.dry_run or args.apply or args.refresh_matches:
                 parser.error("--reset-auth cannot be combined with --dry-run or --apply")
             removed = paths.reset_auth()
             logger.info(
@@ -171,6 +179,7 @@ def main(argv: list[str] | None = None) -> int:
             playlist_names=None,
             include_saved=include_saved,
             quiet=args.quiet,
+            refresh_matches=args.refresh_matches,
         )
         reports = [(route, report)]
         if args.mode == "combine":
@@ -190,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
                 playlist_names=playlist_names,
                 include_saved=include_saved,
                 quiet=args.quiet,
+                refresh_matches=args.refresh_matches,
             )
             reports.append((reverse_route, reverse_report))
 
