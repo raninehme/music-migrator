@@ -4,8 +4,8 @@ import pytest
 import yaml
 
 from music_migrator.cli import _setup_profile, _write_unmatched, main
-from music_migrator.migration import CollectionReport, MigrationReport
-from music_migrator.models import Track
+from music_migrator.core.migration import CollectionReport, MigrationReport
+from music_migrator.core.models import Track
 from music_migrator.profiles import ProfilePaths
 
 

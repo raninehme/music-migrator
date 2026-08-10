@@ -6,7 +6,7 @@ from typing import Any, TypeVar
 import requests
 import tidalapi
 
-from music_migrator.models import Track
+from music_migrator.core.models import Track
 
 T = TypeVar("T")
 

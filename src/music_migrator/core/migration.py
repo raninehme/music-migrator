@@ -5,11 +5,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from threading import Lock
 
-from music_migrator.cache import MatchCache
-from music_migrator.matching import best_match
-from music_migrator.models import Track, TrackMatch
-from music_migrator.spotify import SpotifySource
-from music_migrator.tidal import TidalDestination
+from music_migrator.core.cache import MatchCache
+from music_migrator.core.matching import best_match
+from music_migrator.core.models import Track, TrackMatch
+from music_migrator.services.spotify.service import SpotifySource
+from music_migrator.services.tidal.service import TidalDestination
 
 
 @dataclass(slots=True)

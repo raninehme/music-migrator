@@ -9,13 +9,13 @@ from pathlib import Path
 import yaml
 
 from music_migrator import __version__
-from music_migrator.cache import MatchCache
 from music_migrator.config import MigrationConfig
+from music_migrator.core.cache import MatchCache
+from music_migrator.core.migration import MigrationReport, Migrator
 from music_migrator.logging_config import configure_logging
-from music_migrator.migration import MigrationReport, Migrator
 from music_migrator.profiles import ProfilePaths
-from music_migrator.spotify import SpotifySource
-from music_migrator.tidal import TidalDestination
+from music_migrator.services.spotify.service import SpotifySource
+from music_migrator.services.tidal.service import TidalDestination
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-from music_migrator.cache import MatchCache
+from music_migrator.core.cache import MatchCache
 
 
 def test_cache_round_trip_and_update(tmp_path):

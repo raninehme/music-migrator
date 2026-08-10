@@ -1,4 +1,4 @@
-from music_migrator.spotify import SpotifySource
+from music_migrator.services.spotify.service import SpotifySource
 
 
 def spotify_track(track_id="track-1", name="Song"):

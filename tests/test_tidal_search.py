@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from music_migrator.models import Track
-from music_migrator.tidal import TidalDestination
+from music_migrator.core.models import Track
+from music_migrator.services.tidal.service import TidalDestination
 
 
 def raw_track(identifier, title, artists, isrc):

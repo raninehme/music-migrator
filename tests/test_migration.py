@@ -1,9 +1,9 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from music_migrator.cache import MatchCache
-from music_migrator.migration import Migrator
-from music_migrator.models import Playlist, Track
+from music_migrator.core.cache import MatchCache
+from music_migrator.core.migration import Migrator
+from music_migrator.core.models import Playlist, Track
 
 
 def test_dry_run_never_creates_or_changes_playlist(tmp_path):

@@ -2,7 +2,7 @@ import re
 import unicodedata
 from difflib import SequenceMatcher
 
-from music_migrator.models import Track, TrackMatch
+from music_migrator.core.models import Track, TrackMatch
 
 
 def normalize(value: str | None) -> str:

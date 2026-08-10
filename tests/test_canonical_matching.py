@@ -1,5 +1,5 @@
-from music_migrator.matching import best_match, normalize_title, score
-from music_migrator.models import Track
+from music_migrator.core.matching import best_match, normalize_title, score
+from music_migrator.core.models import Track
 
 
 def test_normalizes_soundtrack_and_feature_qualifiers():

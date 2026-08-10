@@ -4,8 +4,8 @@ from unittest.mock import Mock
 import pytest
 
 from music_migrator.config import MigrationConfig
-from music_migrator.migration import Migrator
-from music_migrator.models import Track, TrackMatch
+from music_migrator.core.migration import Migrator
+from music_migrator.core.models import Track, TrackMatch
 
 
 def test_concurrent_matching_preserves_source_order():
