@@ -107,14 +107,16 @@ class Migrator:
             )
 
         if include_saved:
+            collection_name = self._source.saved_tracks_name
             tracks = list(self._source.saved_tracks())
-            matched, unmatched = self._match_tracks(tracks, "Liked Songs")
+            matched, unmatched = self._match_tracks(tracks, collection_name)
             changed = bool(matched)
             if not self._dry_run:
-                self._progress(f"Syncing {self._destination.display_name} favorites", None, None)
+                label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
+                self._progress(f"Syncing {label}", None, None)
                 changed = self._destination.add_favorites(matched) > 0
             report.collections.append(
-                CollectionReport("Liked Songs", len(tracks), len(matched), unmatched, changed)
+                CollectionReport(collection_name, len(tracks), len(matched), unmatched, changed)
             )
         return report
 

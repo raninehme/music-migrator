@@ -3,6 +3,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PROFILE_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+ROUTE_PATTERN = re.compile(r"^[a-z0-9-]+-to-[a-z0-9-]+$")
+
+
+@dataclass(frozen=True, slots=True)
+class MigrationPaths:
+    match_cache: Path
+    unmatched_report: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -11,9 +18,9 @@ class ProfilePaths:
     config: Path
     spotify_session: Path
     tidal_session: Path
-    match_cache: Path
+    cache_dir: Path
     log_file: Path
-    unmatched_report: Path
+    reports_dir: Path
 
     @classmethod
     def for_name(cls, name: str) -> "ProfilePaths":
@@ -25,14 +32,33 @@ class ProfilePaths:
             config=root / "config.yml",
             spotify_session=root / "spotify-session.json",
             tidal_session=root / "tidal-session.json",
-            match_cache=root / "matches.sqlite3",
+            cache_dir=root / "cache",
             log_file=root / "logs" / "music-migrator.log",
-            unmatched_report=root / "reports" / "unmatched.csv",
+            reports_dir=root / "reports",
         )
 
     def prepare(self) -> None:
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
-        self.unmatched_report.parent.mkdir(parents=True, exist_ok=True)
+        self.reports_dir.mkdir(parents=True, exist_ok=True)
+
+    def for_route(self, route_key: str) -> MigrationPaths:
+        if not ROUTE_PATTERN.fullmatch(route_key):
+            raise ValueError(f"invalid migration route key: {route_key}")
+        return MigrationPaths(
+            match_cache=self.cache_dir / f"{route_key}.sqlite3",
+            unmatched_report=self.reports_dir / route_key / "unmatched.csv",
+        )
+
+    def session_for(self, service_name: str) -> Path:
+        sessions = {
+            "spotify": self.spotify_session,
+            "tidal": self.tidal_session,
+        }
+        try:
+            return sessions[service_name]
+        except KeyError as error:
+            raise ValueError(f"unknown session service: {service_name}") from error
 
     def reset_auth(self) -> int:
         removed = 0

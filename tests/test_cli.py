@@ -9,7 +9,7 @@ from music_migrator.core.models import Track
 from music_migrator.profiles import ProfilePaths
 
 
-def test_unmatched_report_deduplicates_spotify_tracks(tmp_path):
+def test_unmatched_report_deduplicates_source_tracks(tmp_path):
     track = Track("spotify-1", "Song", ("Artist",), "Album", 180, "ISRC")
     report = MigrationReport(
         [
@@ -17,14 +17,14 @@ def test_unmatched_report_deduplicates_spotify_tracks(tmp_path):
             CollectionReport("Two", 1, 0, [track]),
         ]
     )
-    output = tmp_path / "unmatched.csv"
+    output = tmp_path / "reports" / "unmatched.csv"
 
     _write_unmatched(report, output)
 
     with output.open(encoding="utf-8", newline="") as source:
         rows = list(csv.DictReader(source))
     assert len(rows) == 1
-    assert rows[0]["spotify_id"] == "spotify-1"
+    assert rows[0]["source_id"] == "spotify-1"
 
 
 def test_setup_writes_profile_configuration(tmp_path, monkeypatch):
