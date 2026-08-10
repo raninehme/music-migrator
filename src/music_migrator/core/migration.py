@@ -4,11 +4,14 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from threading import Lock
+from typing import Literal
 
 from music_migrator.core.cache import MatchCache
 from music_migrator.core.matching import best_match
 from music_migrator.core.models import Track, TrackMatch
 from music_migrator.services.base import MusicDestination, MusicSource
+
+MigrationStrategy = Literal["merge", "mirror"]
 
 
 @dataclass(slots=True)
@@ -18,6 +21,7 @@ class CollectionReport:
     matched_tracks: int
     unmatched: list[Track] = field(default_factory=list)
     changed: bool = False
+    saved: bool = False
 
 
 @dataclass(slots=True)
@@ -60,6 +64,7 @@ class Migrator:
         cache: MatchCache,
         *,
         dry_run: bool,
+        strategy: MigrationStrategy = "mirror",
         max_concurrency: int = 10,
         rate_limit: int = 10,
         progress: Callable[[str, int | None, int | None], None] | None = None,
@@ -68,17 +73,28 @@ class Migrator:
         self._destination = destination
         self._cache = cache
         self._dry_run = dry_run
+        if strategy not in ("merge", "mirror"):
+            raise ValueError(f"unknown migration strategy: {strategy}")
+        self._strategy = strategy
         self._max_concurrency = max_concurrency
         self._rate_limiter = RateLimiter(rate_limit)
         self._progress = progress or (lambda _label, _current, _total: None)
 
-    def migrate(self, playlist_ids: list[str] | None, include_saved: bool) -> MigrationReport:
+    def migrate(
+        self,
+        playlist_ids: list[str] | None,
+        include_saved: bool,
+        *,
+        playlist_names: set[str] | None = None,
+    ) -> MigrationReport:
         self._progress(f"Loading {self._source.display_name} playlists", None, None)
         source_playlists = (
             [self._source.playlist(item) for item in playlist_ids]
             if playlist_ids
             else list(self._source.playlists())
         )
+        if playlist_names is not None:
+            source_playlists = [item for item in source_playlists if item.name in playlist_names]
         self._progress(f"Loading {self._destination.display_name} playlists", None, None)
         destinations = self._destination.playlists_by_name()
         report = MigrationReport()
@@ -86,7 +102,9 @@ class Migrator:
             tracks = list(self._source.playlist_tracks(playlist.source_id))
             matched, unmatched = self._match_tracks(tracks, playlist.name)
             target = destinations.get(playlist.name)
-            changed = target is None or self._destination.playlist_track_ids(target) != matched
+            existing = self._destination.playlist_track_ids(target) if target is not None else []
+            desired = self._desired_playlist_tracks(matched, existing)
+            changed = target is None or existing != desired
             if not self._dry_run and changed:
                 if target is None:
                     self._progress(
@@ -101,7 +119,7 @@ class Migrator:
                     None,
                     None,
                 )
-                self._destination.sync_playlist(target, matched)
+                self._destination.sync_playlist(target, desired)
             report.collections.append(
                 CollectionReport(playlist.name, len(tracks), len(matched), unmatched, changed)
             )
@@ -116,9 +134,22 @@ class Migrator:
                 self._progress(f"Syncing {label}", None, None)
                 changed = self._destination.add_favorites(matched) > 0
             report.collections.append(
-                CollectionReport(collection_name, len(tracks), len(matched), unmatched, changed)
+                CollectionReport(
+                    collection_name,
+                    len(tracks),
+                    len(matched),
+                    unmatched,
+                    changed,
+                    saved=True,
+                )
             )
         return report
+
+    def _desired_playlist_tracks(self, matched: list[str], existing: list[str]) -> list[str]:
+        if self._strategy == "mirror":
+            return matched
+        matched_ids = set(matched)
+        return [*matched, *(track_id for track_id in existing if track_id not in matched_ids)]
 
     def _match_tracks(
         self, tracks: list[Track], collection_name: str
