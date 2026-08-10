@@ -11,7 +11,7 @@ import yaml
 from music_migrator import __version__
 from music_migrator.config import MigrationConfig
 from music_migrator.core.cache import MatchCache
-from music_migrator.core.migration import MigrationReport, Migrator
+from music_migrator.core.migration import MigrationReport, MigrationStrategy, Migrator
 from music_migrator.core.planning import MigrationRoute, plan_route
 from music_migrator.logging_config import configure_logging
 from music_migrator.profiles import ProfilePaths
@@ -46,6 +46,13 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--dry-run", action="store_true", help="preview changes without writing")
     mode.add_argument("--apply", action="store_true", help="write changes to the destination")
     parser.add_argument(
+        "--strategy",
+        choices=("mirror", "merge"),
+        default="mirror",
+        help="mirror the source or merge both services without deleting playlist tracks "
+        "(default: mirror)",
+    )
+    parser.add_argument(
         "--reset-auth", action="store_true", help="remove profile login sessions and exit"
     )
     parser.add_argument("--quiet", action="store_true", help="show errors and final report only")
@@ -72,6 +79,39 @@ def _authenticate_route(
         paths.session_for(route.destination.name),
     )
     return source, destination
+
+
+def _run_route(
+    route: MigrationRoute,
+    config: MigrationConfig,
+    paths: ProfilePaths,
+    *,
+    dry_run: bool,
+    strategy: MigrationStrategy,
+    playlist_ids: list[str] | None,
+    playlist_names: set[str] | None,
+    include_saved: bool,
+    quiet: bool,
+) -> MigrationReport:
+    source, destination = _authenticate_route(route, config, paths)
+    route_paths = paths.for_route(route.key)
+    with MatchCache(route_paths.match_cache) as cache:
+        report = Migrator(
+            source,
+            destination,
+            cache,
+            dry_run=dry_run,
+            strategy=strategy,
+            max_concurrency=config.max_concurrency,
+            rate_limit=config.rate_limit,
+            progress=ConsoleProgress(quiet=quiet),
+        ).migrate(
+            playlist_ids,
+            include_saved,
+            playlist_names=playlist_names,
+        )
+    _write_unmatched(report, route_paths.unmatched_report)
+    return report
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -108,33 +148,54 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("choose exactly one migration mode: --dry-run or --apply")
 
         route = plan_route(args.source_service, args.destination_service)
-        route_paths = paths.for_route(route.key)
         config = MigrationConfig.load(paths.config)
         logger.info(
-            "Starting %s from %s to %s for profile %s with %d workers and %d requests/second",
+            "Starting %s using %s strategy from %s to %s for profile %s with %d workers "
+            "and %d requests/second",
             "migration" if args.apply else "dry run",
+            args.strategy,
             route.source.name,
             route.destination.name,
             profile_name,
             config.max_concurrency,
             config.rate_limit,
         )
-        source, destination = _authenticate_route(route, config, paths)
-        with MatchCache(route_paths.match_cache) as cache:
-            report = Migrator(
-                source,
-                destination,
-                cache,
+        include_saved = config.include_saved_tracks and not args.no_saved_tracks
+        report = _run_route(
+            route,
+            config,
+            paths,
+            dry_run=not args.apply,
+            strategy=args.strategy,
+            playlist_ids=args.playlist or None,
+            playlist_names=None,
+            include_saved=include_saved,
+            quiet=args.quiet,
+        )
+        reports = [(route, report)]
+        if args.strategy == "merge":
+            reverse_route = plan_route(route.destination.name, route.source.name)
+            playlist_names = {item.name for item in report.collections if not item.saved}
+            reverse_report = _run_route(
+                reverse_route,
+                config,
+                paths,
                 dry_run=not args.apply,
-                max_concurrency=config.max_concurrency,
-                rate_limit=config.rate_limit,
-                progress=ConsoleProgress(quiet=args.quiet),
-            ).migrate(
-                args.playlist or None,
-                config.include_saved_tracks and not args.no_saved_tracks,
+                strategy="merge",
+                playlist_ids=None,
+                playlist_names=playlist_names,
+                include_saved=include_saved,
+                quiet=args.quiet,
             )
-        _print_report(report, dry_run=not args.apply)
-        _write_unmatched(report, route_paths.unmatched_report)
+            reports.append((reverse_route, reverse_report))
+
+        show_routes = len(reports) > 1
+        for report_route, migration_report in reports:
+            _print_report(
+                migration_report,
+                dry_run=not args.apply,
+                route=report_route if show_routes else None,
+            )
         logger.info("Completed in %.1f seconds", time.perf_counter() - started)
         return 0
     except Exception as error:
@@ -167,9 +228,12 @@ class ConsoleProgress:
         )
 
 
-def _print_report(report: MigrationReport, *, dry_run: bool) -> None:
+def _print_report(
+    report: MigrationReport, *, dry_run: bool, route: MigrationRoute | None = None
+) -> None:
     mode = "DRY RUN" if dry_run else "APPLIED"
-    print(f"\n{mode}")
+    heading = f"{mode} {route.key}" if route else mode
+    print(f"\n{heading}")
     for item in report.collections:
         action = "change" if item.changed else "unchanged"
         print(
