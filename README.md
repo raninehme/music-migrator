@@ -102,18 +102,28 @@ Liked Songs and TIDAL favorites are add-only in both modes.
 Each profile stores its configuration at `.music-migrator/profiles/NAME/config.yml`:
 
 ```yaml
-spotify:
-  client_id: your_client_id
-  client_secret: your_client_secret
-  redirect_uri: http://127.0.0.1:8888/callback
-  open_browser: true
+services:
+  spotify:
+    client_id: your_client_id
+    client_secret: your_client_secret
+    redirect_uri: http://127.0.0.1:8888/callback
+    open_browser: true
+
+    # Optional request limits. Uncomment only to override the safe defaults.
+    # requests:
+    #   max_concurrency: 3
+    #   rate_limit: 3
+
+  # TIDAL authentication starts when a migration first uses TIDAL.
+  # tidal:
+  #   requests:
+  #     max_concurrency: 8
+  #     rate_limit: 8
 
 include_saved_tracks: true
-max_concurrency: 10
-rate_limit: 10
 ```
 
-`max_concurrency` controls simultaneous catalog searches. `rate_limit` controls how many searches may start per second. Lower either value if a service begins throttling requests.
+Each destination adapter provides safe request defaults. Most users should leave the commented settings unchanged. Advanced users can override both `max_concurrency` and `rate_limit` under a service's `requests` section. Existing profiles with the top-level `spotify`, `max_concurrency`, and `rate_limit` keys remain supported.
 
 Boolean values must be YAML booleans such as `true` or `false`, not quoted strings. Concurrency and rate-limit values must be positive integers.
 

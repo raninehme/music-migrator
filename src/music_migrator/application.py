@@ -75,6 +75,10 @@ def _authenticate_route(
     config: MigrationConfig,
     paths: ProfilePaths,
 ) -> tuple[MusicSource, MusicDestination]:
+    for service in (route.source, route.destination):
+        if service.validate_config is not None:
+            service.validate_config(config)
+
     source_authenticator = route.source.authenticate_source
     destination_authenticator = route.destination.authenticate_destination
     if source_authenticator is None or destination_authenticator is None:
@@ -105,14 +109,15 @@ def _run_route(
     with MatchCache(route_paths.match_cache) as cache:
         if refresh_matches:
             cache.clear()
+        requests = config.requests_for(route.destination.name, route.destination.request_defaults)
         return Migrator(
             source,
             destination,
             cache,
             dry_run=dry_run,
             mode=mode,
-            max_concurrency=config.max_concurrency,
-            rate_limit=config.rate_limit,
+            max_concurrency=requests.max_concurrency,
+            rate_limit=requests.rate_limit,
             progress=progress,
         ).migrate(
             playlist_ids,

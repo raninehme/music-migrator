@@ -1,12 +1,12 @@
-from dataclasses import dataclass
+import json
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 DEFAULT_REDIRECT_URI = "http://127.0.0.1:8888/callback"
-DEFAULT_MAX_CONCURRENCY = 10
-DEFAULT_RATE_LIMIT = 10
 
 
 def _boolean(raw: dict[str, Any], key: str, default: bool) -> bool:
@@ -16,8 +16,8 @@ def _boolean(raw: dict[str, Any], key: str, default: bool) -> bool:
     return value
 
 
-def _positive_integer(raw: dict[str, Any], key: str, default: int) -> int:
-    value = raw.get(key, default)
+def _positive_integer(raw: dict[str, Any], key: str) -> int:
+    value = raw.get(key)
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{key} must be an integer")
     if value < 1:
@@ -26,19 +26,18 @@ def _positive_integer(raw: dict[str, Any], key: str, default: int) -> int:
 
 
 @dataclass(frozen=True, slots=True)
-class SpotifyConfig:
-    client_id: str
-    client_secret: str
-    redirect_uri: str = DEFAULT_REDIRECT_URI
-    open_browser: bool = True
+class RequestSettings:
+    max_concurrency: int
+    rate_limit: int
 
 
 @dataclass(frozen=True, slots=True)
 class MigrationConfig:
-    spotify: SpotifyConfig
+    services: dict[str, dict[str, Any]] = field(default_factory=dict)
     include_saved_tracks: bool = True
-    max_concurrency: int = DEFAULT_MAX_CONCURRENCY
-    rate_limit: int = DEFAULT_RATE_LIMIT
+    service_requests: dict[str, RequestSettings] = field(default_factory=dict)
+    max_concurrency: int | None = None
+    rate_limit: int | None = None
 
     @classmethod
     def load(cls, path: Path) -> "MigrationConfig":
@@ -50,26 +49,80 @@ class MigrationConfig:
 
     @classmethod
     def from_mapping(cls, raw: dict[str, Any]) -> "MigrationConfig":
-        spotify_raw = raw.get("spotify")
-        if not isinstance(spotify_raw, dict):
-            raise ValueError("Missing 'spotify' configuration")
+        services_raw = raw.get("services", {})
+        if not isinstance(services_raw, dict):
+            raise ValueError("services must be a mapping")
 
-        required = ("client_id", "client_secret")
-        missing = [key for key in required if not spotify_raw.get(key)]
-        if missing:
-            raise ValueError(f"Missing Spotify setting(s): {', '.join(missing)}")
+        services = dict(services_raw)
+        if "spotify" not in services and "spotify" in raw:
+            services["spotify"] = raw["spotify"]
 
-        max_concurrency = _positive_integer(raw, "max_concurrency", DEFAULT_MAX_CONCURRENCY)
-        rate_limit = _positive_integer(raw, "rate_limit", DEFAULT_RATE_LIMIT)
+        service_requests: dict[str, RequestSettings] = {}
+        for service_name, service_raw in services.items():
+            if not isinstance(service_raw, dict):
+                raise ValueError(f"services.{service_name} must be a mapping")
+            requests_raw = service_raw.get("requests")
+            if requests_raw is None:
+                continue
+            if not isinstance(requests_raw, dict):
+                raise ValueError(f"services.{service_name}.requests must be a mapping")
+            service_requests[service_name] = RequestSettings(
+                max_concurrency=_positive_integer(requests_raw, "max_concurrency"),
+                rate_limit=_positive_integer(requests_raw, "rate_limit"),
+            )
+
+        max_concurrency = (
+            _positive_integer(raw, "max_concurrency") if "max_concurrency" in raw else None
+        )
+        rate_limit = _positive_integer(raw, "rate_limit") if "rate_limit" in raw else None
+        if (max_concurrency is None) != (rate_limit is None):
+            raise ValueError("max_concurrency and rate_limit must be configured together")
 
         return cls(
-            spotify=SpotifyConfig(
-                client_id=str(spotify_raw["client_id"]),
-                client_secret=str(spotify_raw["client_secret"]),
-                redirect_uri=str(spotify_raw.get("redirect_uri", DEFAULT_REDIRECT_URI)),
-                open_browser=_boolean(spotify_raw, "open_browser", True),
-            ),
+            services=services,
             include_saved_tracks=_boolean(raw, "include_saved_tracks", True),
+            service_requests=service_requests,
             max_concurrency=max_concurrency,
             rate_limit=rate_limit,
         )
+
+    def service(self, service_name: str) -> dict[str, Any] | None:
+        return self.services.get(service_name)
+
+    def requests_for(self, service_name: str, defaults: RequestSettings) -> RequestSettings:
+        override = self.service_requests.get(service_name)
+        if override is not None:
+            return override
+        if self.max_concurrency is not None and self.rate_limit is not None:
+            return RequestSettings(self.max_concurrency, self.rate_limit)
+        return defaults
+
+
+def render_profile_config(
+    client_id: str,
+    client_secret: str,
+    request_defaults: Mapping[str, RequestSettings],
+) -> str:
+    """Render a discoverable profile without requiring optional request settings."""
+    spotify_requests = request_defaults["spotify"]
+    tidal_requests = request_defaults["tidal"]
+    return f"""services:
+  spotify:
+    client_id: {json.dumps(client_id)}
+    client_secret: {json.dumps(client_secret)}
+    redirect_uri: {DEFAULT_REDIRECT_URI}
+    open_browser: true
+
+    # Optional request limits. Uncomment only to override the safe defaults.
+    # requests:
+    #   max_concurrency: {spotify_requests.max_concurrency}
+    #   rate_limit: {spotify_requests.rate_limit}
+
+  # TIDAL authentication starts when a migration first uses TIDAL.
+  # tidal:
+  #   requests:
+  #     max_concurrency: {tidal_requests.max_concurrency}
+  #     rate_limit: {tidal_requests.rate_limit}
+
+include_saved_tracks: true
+"""

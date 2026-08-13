@@ -7,16 +7,9 @@ import time
 from collections.abc import Iterable
 from pathlib import Path
 
-import yaml
-
 from music_migrator import __version__
 from music_migrator.application import RouteReport, run_migration
-from music_migrator.config import (
-    DEFAULT_MAX_CONCURRENCY,
-    DEFAULT_RATE_LIMIT,
-    DEFAULT_REDIRECT_URI,
-    MigrationConfig,
-)
+from music_migrator.config import MigrationConfig, render_profile_config
 from music_migrator.core.migration import MigrationReport
 from music_migrator.core.models import Track
 from music_migrator.core.planning import MigrationRoute, plan_route
@@ -123,7 +116,7 @@ def _handle_reset_auth(
 ) -> int:
     if args.dry_run or args.apply or args.refresh_matches:
         parser.error("--reset-auth cannot be combined with --dry-run or --apply")
-    removed = paths.reset_auth()
+    removed = paths.reset_auth(SERVICES)
     logger.info(
         "Reset authentication for profile %s (%d sessions removed)",
         profile_name,
@@ -197,6 +190,7 @@ def _log_migration_start(
     config: MigrationConfig,
     profile_name: str,
 ) -> None:
+    requests = config.requests_for(route.destination.name, route.destination.request_defaults)
     logger.info(
         "Starting %s using %s mode from %s to %s for profile %s with %d workers "
         "and %d requests/second",
@@ -205,8 +199,8 @@ def _log_migration_start(
         route.source.name,
         route.destination.name,
         profile_name,
-        config.max_concurrency,
-        config.rate_limit,
+        requests.max_concurrency,
+        requests.rate_limit,
     )
 
 
@@ -306,19 +300,9 @@ def _setup_profile(paths: ProfilePaths, profile_name: str) -> None:
     if not client_id or not client_secret:
         raise ValueError("Spotify client ID and client secret are required")
 
-    config = {
-        "spotify": {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "redirect_uri": DEFAULT_REDIRECT_URI,
-            "open_browser": True,
-        },
-        "include_saved_tracks": True,
-        "max_concurrency": DEFAULT_MAX_CONCURRENCY,
-        "rate_limit": DEFAULT_RATE_LIMIT,
-    }
     with paths.config.open("x", encoding="utf-8") as output:
-        yaml.safe_dump(config, output, sort_keys=False)
+        request_defaults = {name: service.request_defaults for name, service in SERVICES.items()}
+        output.write(render_profile_config(client_id, client_secret, request_defaults))
     paths.config.chmod(0o600)
     logger.info("Created profile %s at %s", profile_name, paths.config)
 
