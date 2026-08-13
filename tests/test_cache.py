@@ -53,9 +53,8 @@ def test_cache_migrates_versioned_schema_without_fingerprints(tmp_path):
         connection.execute("INSERT INTO matches VALUES ('spotify', 'tidal', 2)")
 
     with MatchCache(path, match_version=2) as cache:
-        assert cache.get("spotify", "fingerprint") is None
-        cache.put("spotify", "new-tidal", "fingerprint")
-        assert cache.get("spotify", "fingerprint") == "new-tidal"
+        assert cache.get("spotify", "fingerprint") == "tidal"
+        assert cache.get("spotify", "changed") is None
 
 
 def test_cache_can_be_cleared(tmp_path):

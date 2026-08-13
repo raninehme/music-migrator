@@ -74,7 +74,8 @@ Review the output, then replace `--dry-run` with `--apply` to write changes.
 | `--apply` | Apply changes. One of `--dry-run` or `--apply` is required for migration. |
 | `--playlist ID` | Migrate one source playlist. Repeat the flag for multiple playlists. |
 | `--no-saved-tracks` | Skip Spotify Liked Songs and TIDAL favorites. |
-| `--refresh-matches` | Clear route-specific cached matches before migrating. |
+| `--refresh-matches` | Clear cached matches for every route executed by this command after confirmation. |
+| `--yes` | Confirm `--refresh-matches` non-interactively. |
 | `--reset-auth` | Remove saved Spotify and TIDAL login sessions, then exit. |
 | `--quiet` | Show errors and the final report only. |
 | `--debug` | Include debug logs and tracebacks. |
@@ -132,7 +133,7 @@ Runtime logs are written to:
 .music-migrator/profiles/NAME/logs/music-migrator.log
 ```
 
-Confirmed matches are cached per direction. Matcher-version changes automatically invalidate older entries. Failed destination writes discard affected entries so the next run searches again. Use `--refresh-matches` to force a complete route refresh.
+Confirmed matches are cached per direction. Matcher-version changes automatically invalidate older entries. Failed destination writes discard affected entries so the next run searches again. Use `--refresh-matches` only when a complete rebuild is necessary. Replace mode clears the requested route; combine mode clears both directions. The command asks for confirmation because every track must be searched again.
 
 ## Safety and limitations
 
@@ -151,7 +152,7 @@ Confirmed matches are cached per direction. Matcher-version changes automaticall
 - **Login does not finish:** Confirm the redirect URI is exact and port `8888` is available.
 - **Wrong account opens:** Run with `--reset-auth` for the affected profile.
 - **Requests are throttled:** Lower `max_concurrency` and `rate_limit` in the profile configuration.
-- **Tracks are missing:** Review the route-specific `unmatched.csv` and retry with `--refresh-matches`.
+- **Tracks are missing:** Review the route-specific `unmatched.csv`. Use `--refresh-matches` only when rebuilding every cached match is necessary because it can consume significant API quota.
 - **A playlist write fails:** The tool attempts restoration and exits with an error. Inspect the destination playlist and runtime log before retrying.
 
 ## Contributing
