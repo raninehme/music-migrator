@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 from music_migrator.core.cache import MatchCache
+from music_migrator.core.matching import track_fingerprint
 from music_migrator.core.migration import Migrator
 from music_migrator.core.models import Playlist, Track
 
@@ -190,7 +191,7 @@ def test_failed_playlist_write_discards_cached_matches(tmp_path):
     destination.sync_playlist.side_effect = RuntimeError("write failed")
 
     with MatchCache(tmp_path / "cache.sqlite3") as cache:
-        cache.put("source-1", "destination-1")
+        cache.put("source-1", "destination-1", track_fingerprint(source_track))
         with pytest.raises(RuntimeError, match="write failed"):
             Migrator(source, destination, cache, dry_run=False).migrate(None, False)
-        assert cache.get("source-1") is None
+        assert cache.get("source-1", track_fingerprint(source_track)) is None

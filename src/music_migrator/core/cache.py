@@ -12,7 +12,7 @@ class MatchCache:
         self._connection.execute(
             "CREATE TABLE IF NOT EXISTS matches ("
             "source_id TEXT PRIMARY KEY, destination_id TEXT NOT NULL, "
-            "match_version INTEGER NOT NULL DEFAULT 1)"
+            "match_version INTEGER NOT NULL DEFAULT 1, source_fingerprint TEXT)"
         )
         columns = {
             row[1] for row in self._connection.execute("PRAGMA table_info(matches)").fetchall()
@@ -21,25 +21,32 @@ class MatchCache:
             self._connection.execute(
                 "ALTER TABLE matches ADD COLUMN match_version INTEGER NOT NULL DEFAULT 1"
             )
+        if "source_fingerprint" not in columns:
+            self._connection.execute("ALTER TABLE matches ADD COLUMN source_fingerprint TEXT")
         self._connection.commit()
         self._match_version = match_version
         self._lock = threading.Lock()
 
-    def get(self, source_id: str) -> str | None:
+    def get(self, source_id: str, source_fingerprint: str) -> str | None:
         with self._lock:
             row = self._connection.execute(
-                "SELECT destination_id FROM matches WHERE source_id = ? AND match_version = ?",
-                (source_id, self._match_version),
+                "SELECT destination_id FROM matches "
+                "WHERE source_id = ? AND match_version = ? AND source_fingerprint = ?",
+                (source_id, self._match_version, source_fingerprint),
             ).fetchone()
         return row[0] if row else None
 
-    def put(self, source_id: str, destination_id: str) -> None:
+    def put(self, source_id: str, destination_id: str, source_fingerprint: str) -> None:
         with self._lock:
             self._connection.execute(
-                "INSERT INTO matches(source_id, destination_id, match_version) VALUES (?, ?, ?) "
-                "ON CONFLICT(source_id) DO UPDATE SET destination_id = excluded.destination_id, "
-                "match_version = excluded.match_version",
-                (source_id, destination_id, self._match_version),
+                "INSERT INTO matches("
+                "source_id, destination_id, match_version, source_fingerprint"
+                ") VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(source_id) DO UPDATE SET "
+                "destination_id = excluded.destination_id, "
+                "match_version = excluded.match_version, "
+                "source_fingerprint = excluded.source_fingerprint",
+                (source_id, destination_id, self._match_version, source_fingerprint),
             )
             self._connection.commit()
 
