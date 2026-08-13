@@ -97,4 +97,9 @@ def test_migration_handler_delegates_execution_and_presentation(tmp_path, monkey
     assert run_migration.call_args.args[0].key == "spotify-to-tidal"
     assert run_migration.call_args.kwargs["playlist_ids"] == ["playlist-1"]
     assert run_migration.call_args.kwargs["refresh_matches"] is True
-    present_reports.assert_called_once_with(reports, paths, dry_run=True)
+    present_reports.assert_called_once_with(
+        reports,
+        paths,
+        dry_run=True,
+        show_routes=False,
+    )

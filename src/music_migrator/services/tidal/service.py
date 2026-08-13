@@ -1,3 +1,4 @@
+import logging
 import re
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -10,6 +11,8 @@ from music_migrator.core.models import Playlist, Track
 from music_migrator.services.tidal.auth import create_tidal_session
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 TIDAL_PAGE_SIZE = 50
 TIDAL_WRITE_BATCH_SIZE = 50
@@ -149,9 +152,15 @@ class TidalDestination:
         if existing == track_ids[: len(existing)]:
             self._add_tracks(playlist, track_ids[len(existing) :])
             return True
-        if existing:
-            self._retry_precondition(playlist, playlist.clear)
-        self._add_tracks(playlist, track_ids)
+        try:
+            self._replace_tracks(playlist, track_ids, clear=bool(existing))
+        except Exception:
+            logger.warning("Playlist update failed; restoring original TIDAL tracks")
+            try:
+                self._replace_tracks(playlist, existing, clear=True)
+            except Exception:
+                logger.exception("Could not restore the original TIDAL playlist")
+            raise
         return True
 
     @staticmethod
@@ -174,6 +183,11 @@ class TidalDestination:
             if len(page) < TIDAL_PAGE_SIZE:
                 return ids
             offset += TIDAL_PAGE_SIZE
+
+    def _replace_tracks(self, playlist: Any, track_ids: list[str], *, clear: bool) -> None:
+        if clear:
+            self._retry_precondition(playlist, playlist.clear)
+        self._add_tracks(playlist, track_ids)
 
     def _add_tracks(self, playlist: Any, track_ids: list[str]) -> None:
         for start in range(0, len(track_ids), TIDAL_WRITE_BATCH_SIZE):

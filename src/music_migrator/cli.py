@@ -4,6 +4,7 @@ import getpass
 import logging
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 import yaml
@@ -149,7 +150,12 @@ def _handle_migration(
         refresh_matches=args.refresh_matches,
         progress=ConsoleProgress(quiet=args.quiet),
     )
-    _present_reports(reports, paths, dry_run=not args.apply)
+    _present_reports(
+        reports,
+        paths,
+        dry_run=not args.apply,
+        show_routes=args.mode == "combine",
+    )
     logger.info("Completed in %.1f seconds", time.perf_counter() - started)
     return 0
 
@@ -174,12 +180,12 @@ def _log_migration_start(
 
 
 def _present_reports(
-    reports: list[RouteReport],
+    reports: Iterable[RouteReport],
     paths: ProfilePaths,
     *,
     dry_run: bool,
+    show_routes: bool,
 ) -> None:
-    show_routes = len(reports) > 1
     for route_report in reports:
         _write_unmatched(
             route_report.report,
