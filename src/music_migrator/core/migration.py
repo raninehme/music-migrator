@@ -1,7 +1,7 @@
 import time
 from collections import deque
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from threading import Lock
 from typing import Literal
@@ -128,11 +128,15 @@ class Migrator:
                     None,
                     None,
                 )
-                retry_request(
-                    lambda target=target, desired=desired: self._destination.sync_playlist(
-                        target, desired
+                try:
+                    retry_request(
+                        lambda target=target, desired=desired: self._destination.sync_playlist(
+                            target, desired
+                        )
                     )
-                )
+                except Exception:
+                    self._cache.discard([track.source_id for track in tracks])
+                    raise
             report.collections.append(
                 CollectionReport(playlist.name, len(tracks), len(matched), unmatched, changed)
             )
@@ -147,7 +151,11 @@ class Migrator:
             else:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
-                changed = retry_request(lambda: self._destination.add_favorites(matched)) > 0
+                try:
+                    changed = retry_request(lambda: self._destination.add_favorites(matched)) > 0
+                except Exception:
+                    self._cache.discard([track.source_id for track in tracks])
+                    raise
             report.collections.append(
                 CollectionReport(
                     collection_name,
@@ -172,14 +180,27 @@ class Migrator:
         label = f"Matching {collection_name}"
         self._progress(label, 0, len(tracks))
         results: list[TrackMatch | None] = [None] * len(tracks)
+        indexed_tracks = iter(enumerate(tracks))
+        completed = 0
         with ThreadPoolExecutor(max_workers=self._max_concurrency) as executor:
-            pending = {
-                executor.submit(self._match_track, track): index
-                for index, track in enumerate(tracks)
-            }
-            for completed, future in enumerate(as_completed(pending), start=1):
-                results[pending[future]] = future.result()
-                self._progress(label, completed, len(tracks))
+            pending: dict[Future[TrackMatch], int] = {}
+            for _ in range(self._max_concurrency):
+                item = next(indexed_tracks, None)
+                if item is None:
+                    break
+                index, track = item
+                pending[executor.submit(self._match_track, track)] = index
+
+            while pending:
+                done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for future in done:
+                    results[pending.pop(future)] = future.result()
+                    completed += 1
+                    self._progress(label, completed, len(tracks))
+                    item = next(indexed_tracks, None)
+                    if item is not None:
+                        index, track = item
+                        pending[executor.submit(self._match_track, track)] = index
 
         ordered = [result for result in results if result is not None]
         matched = [result.destination_id for result in ordered if result.destination_id]

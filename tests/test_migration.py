@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 from music_migrator.core.cache import MatchCache
 from music_migrator.core.migration import Migrator
 from music_migrator.core.models import Playlist, Track
@@ -175,3 +177,20 @@ def test_saved_tracks_dry_run_reports_missing_favorites(tmp_path):
         report = Migrator(source, destination, cache, dry_run=True).migrate(None, True)
 
     assert report.collections[0].changed is True
+
+
+def test_failed_playlist_write_discards_cached_matches(tmp_path):
+    source_track = Track("source-1", "Song", ("Artist",), "Album", 180, "ISRC")
+    source = Mock()
+    source.playlists.return_value = [Playlist("playlist-1", "Mix")]
+    source.playlist_tracks.return_value = [source_track]
+    destination = Mock()
+    destination.playlists_by_name.return_value = {"Mix": SimpleNamespace()}
+    destination.playlist_track_ids.return_value = []
+    destination.sync_playlist.side_effect = RuntimeError("write failed")
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        cache.put("source-1", "destination-1")
+        with pytest.raises(RuntimeError, match="write failed"):
+            Migrator(source, destination, cache, dry_run=False).migrate(None, False)
+        assert cache.get("source-1") is None

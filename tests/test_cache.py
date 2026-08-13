@@ -40,3 +40,14 @@ def test_cache_can_be_cleared(tmp_path):
         cache.clear()
 
         assert cache.get("spotify") is None
+
+
+def test_cache_can_discard_selected_matches(tmp_path):
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        cache.put("keep", "tidal-1")
+        cache.put("discard", "tidal-2")
+
+        cache.discard(["discard"])
+
+        assert cache.get("keep") == "tidal-1"
+        assert cache.get("discard") is None

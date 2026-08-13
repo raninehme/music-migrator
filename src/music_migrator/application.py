@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
 from music_migrator.config import MigrationConfig
@@ -31,7 +31,7 @@ def run_migration(
     include_saved: bool,
     refresh_matches: bool,
     progress: ProgressCallback,
-) -> list[RouteReport]:
+) -> Iterator[RouteReport]:
     """Run one migration route and, for combine mode, its reverse route."""
     forward_report = _run_route(
         route,
@@ -45,9 +45,9 @@ def run_migration(
         refresh_matches=refresh_matches,
         progress=progress,
     )
-    reports = [RouteReport(route, forward_report)]
+    yield RouteReport(route, forward_report)
     if mode != "combine":
-        return reports
+        return
 
     reverse_route = plan_route(route.destination.name, route.source.name)
     playlist_names = (
@@ -67,8 +67,7 @@ def run_migration(
         refresh_matches=refresh_matches,
         progress=progress,
     )
-    reports.append(RouteReport(reverse_route, reverse_report))
-    return reports
+    yield RouteReport(reverse_route, reverse_report)
 
 
 def _authenticate_route(
