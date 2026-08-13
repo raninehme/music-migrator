@@ -1,6 +1,6 @@
 import time
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from threading import Lock
@@ -36,6 +36,17 @@ class MigrationReport:
     @property
     def unmatched(self) -> list[Track]:
         return [track for item in self.collections for track in item.unmatched]
+
+
+@dataclass(slots=True)
+class MatchResults:
+    matched: list[str] = field(default_factory=list)
+    unmatched: list[Track] = field(default_factory=list)
+    source_ids: list[str] = field(default_factory=list)
+
+    @property
+    def count(self) -> int:
+        return len(self.source_ids)
 
 
 class RateLimiter:
@@ -101,19 +112,18 @@ class Migrator:
         destinations = retry_request(self._destination.playlists_by_name)
         report = MigrationReport()
         for playlist in source_playlists:
-            tracks = retry_request(
-                lambda playlist=playlist: list(self._source.playlist_tracks(playlist.source_id))
+            results = self._match_tracks(
+                self._source.playlist_tracks(playlist.source_id), playlist.name
             )
-            if not tracks:
+            if results.count == 0:
                 continue
-            matched, unmatched = self._match_tracks(tracks, playlist.name)
             target = destinations.get(playlist.name)
             existing = (
                 retry_request(lambda target=target: self._destination.playlist_track_ids(target))
                 if target is not None
                 else []
             )
-            desired = self._desired_playlist_tracks(matched, existing)
+            desired = self._desired_playlist_tracks(results.matched, existing)
             changed = target is None or existing != desired
             if not self._dry_run and changed:
                 if target is None:
@@ -132,33 +142,38 @@ class Migrator:
                 try:
                     self._destination.sync_playlist(target, desired)
                 except Exception:
-                    self._cache.discard([track.source_id for track in tracks])
+                    self._cache.discard(results.source_ids)
                     raise
             report.collections.append(
-                CollectionReport(playlist.name, len(tracks), len(matched), unmatched, changed)
+                CollectionReport(
+                    playlist.name,
+                    results.count,
+                    len(results.matched),
+                    results.unmatched,
+                    changed,
+                )
             )
 
         if include_saved:
             collection_name = self._source.saved_tracks_name
-            tracks = retry_request(lambda: list(self._source.saved_tracks()))
-            matched, unmatched = self._match_tracks(tracks, collection_name)
+            results = self._match_tracks(self._source.saved_tracks(), collection_name)
             if self._dry_run:
                 existing = retry_request(self._destination.favorite_track_ids)
-                changed = any(track_id not in existing for track_id in matched)
+                changed = any(track_id not in existing for track_id in results.matched)
             else:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
                 try:
-                    changed = self._destination.add_favorites(matched) > 0
+                    changed = self._destination.add_favorites(results.matched) > 0
                 except Exception:
-                    self._cache.discard([track.source_id for track in tracks])
+                    self._cache.discard(results.source_ids)
                     raise
             report.collections.append(
                 CollectionReport(
                     collection_name,
-                    len(tracks),
-                    len(matched),
-                    unmatched,
+                    results.count,
+                    len(results.matched),
+                    results.unmatched,
                     changed,
                     saved=True,
                 )
@@ -183,16 +198,16 @@ class Migrator:
         matched_ids = set(matched)
         return [*matched, *(track_id for track_id in existing if track_id not in matched_ids)]
 
-    def _match_tracks(
-        self, tracks: list[Track], collection_name: str
-    ) -> tuple[list[str], list[Track]]:
+    def _match_tracks(self, tracks: Iterable[Track], collection_name: str) -> MatchResults:
         label = f"Matching {collection_name}"
-        self._progress(label, 0, len(tracks))
-        results: list[TrackMatch | None] = [None] * len(tracks)
+        self._progress(label, 0, None)
+        results = MatchResults()
         indexed_tracks = iter(enumerate(tracks))
         completed = 0
+        next_result = 0
         with ThreadPoolExecutor(max_workers=self._max_concurrency) as executor:
             pending: dict[Future[TrackMatch], int] = {}
+            completed_results: dict[int, TrackMatch] = {}
             for _ in range(self._max_concurrency):
                 item = next(indexed_tracks, None)
                 if item is None:
@@ -203,18 +218,29 @@ class Migrator:
             while pending:
                 done, _ = wait(pending, return_when=FIRST_COMPLETED)
                 for future in done:
-                    results[pending.pop(future)] = future.result()
+                    completed_results[pending.pop(future)] = future.result()
                     completed += 1
-                    self._progress(label, completed, len(tracks))
-                    item = next(indexed_tracks, None)
-                    if item is not None:
-                        index, track = item
-                        pending[executor.submit(self._match_track, track)] = index
+                    self._progress(label, completed, None)
 
-        ordered = [result for result in results if result is not None]
-        matched = [result.destination_id for result in ordered if result.destination_id]
-        unmatched = [result.source for result in ordered if result.destination_id is None]
-        return matched, unmatched
+                while next_result in completed_results:
+                    result = completed_results.pop(next_result)
+                    results.source_ids.append(result.source.source_id)
+                    if result.destination_id:
+                        results.matched.append(result.destination_id)
+                    else:
+                        results.unmatched.append(result.source)
+                    next_result += 1
+
+                window_size = len(pending) + len(completed_results)
+                for _ in range(self._max_concurrency - window_size):
+                    item = next(indexed_tracks, None)
+                    if item is None:
+                        break
+                    index, track = item
+                    pending[executor.submit(self._match_track, track)] = index
+
+        self._progress(label, completed, completed)
+        return results
 
     def _match_track(self, track: Track) -> TrackMatch:
         fingerprint = track_fingerprint(track)

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "music-migrator"
-version = "0.4.0"
+version = "0.4.1"
 description = "Move playlists and saved tracks between music services"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "PolyForm-Noncommercial-1.0.0"
+license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Rani Nehme" }]
 dependencies = [

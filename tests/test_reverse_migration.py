@@ -19,7 +19,7 @@ def test_applies_tidal_playlist_to_spotify(tmp_path, mocker):
         id="tidal-playlist",
         name="Mix",
         description="Description",
-        tracks_paginated=mocker.Mock(return_value=[tidal_track]),
+        tracks=mocker.Mock(return_value=[tidal_track]),
     )
     tidal_session = mocker.Mock()
     tidal_session.user.playlists.return_value = [tidal_playlist]

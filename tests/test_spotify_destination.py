@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+import requests
 
 from music_migrator.core.models import Track
 from music_migrator.services.spotify.auth import SPOTIFY_DESTINATION_SCOPES
@@ -164,3 +165,24 @@ def test_restores_spotify_playlist_after_interrupted_replacement(mocker):
         mocker.call("playlist-1", desired[:100]),
         mocker.call("playlist-1", ["old"]),
     ]
+
+
+def test_confirms_append_that_succeeded_before_response_failed(mocker):
+    client = mocker.Mock()
+    client.playlist_items.side_effect = [
+        {
+            "items": [{"item": spotify_track("one")}],
+            "next": None,
+        },
+        {
+            "items": [{"item": spotify_track("one")}, {"item": spotify_track("two")}],
+            "next": None,
+        },
+    ]
+    client.playlist_add_items.side_effect = requests.Timeout("response lost")
+    destination = SpotifyDestination(client)
+
+    changed = destination.sync_playlist({"id": "playlist-1"}, ["one", "two"])
+
+    assert changed is True
+    client.playlist_add_items.assert_called_once_with("playlist-1", ["two"])

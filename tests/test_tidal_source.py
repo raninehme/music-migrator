@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import requests
+
 from music_migrator.services.tidal.service import TidalSource
 
 
@@ -45,7 +47,7 @@ def test_loads_tidal_playlist_by_id(mocker):
 
 def test_loads_playlist_tracks(mocker):
     playlist = mocker.Mock()
-    playlist.tracks_paginated.return_value = [tidal_track("track-1")]
+    playlist.tracks.return_value = [tidal_track("track-1")]
     session = mocker.Mock()
     session.playlist.return_value = playlist
 
@@ -72,3 +74,18 @@ def test_paginates_saved_tracks(mocker):
     assert len(tracks) == 51
     assert tracks[-1].source_id == "last"
     assert [call.kwargs["offset"] for call in favorites.tracks.call_args_list] == [0, 50]
+
+
+def test_retries_a_failed_playlist_track_page(mocker):
+    playlist = mocker.Mock()
+    playlist.tracks.side_effect = [
+        requests.Timeout("temporary"),
+        [tidal_track("track-1")],
+    ]
+    session = mocker.Mock()
+    session.playlist.return_value = playlist
+
+    tracks = list(TidalSource(session).playlist_tracks("playlist-1"))
+
+    assert [track.source_id for track in tracks] == ["track-1"]
+    assert playlist.tracks.call_count == 2

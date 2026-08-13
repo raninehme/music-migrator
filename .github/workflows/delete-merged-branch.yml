@@ -1,0 +1,26 @@
+name: Delete merged branch
+
+on:
+  pull_request:
+    branches:
+      - release
+    types:
+      - closed
+
+permissions:
+  contents: write
+
+jobs:
+  delete-merged-branch:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref != 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the merged feature branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh api --method DELETE "repos/$REPOSITORY/git/refs/heads/$HEAD_REF"
