@@ -30,5 +30,10 @@ def test_create_spotify_client_uses_profile_cache_and_source_scopes(mocker, tmp_
         cache_handler=cache_type.return_value,
         requests_timeout=10,
     )
-    client_type.assert_called_once_with(auth_manager=oauth_type.return_value, requests_timeout=10)
+    client_type.assert_called_once_with(
+        auth_manager=oauth_type.return_value,
+        requests_timeout=10,
+        retries=0,
+        status_retries=0,
+    )
     assert client is client_type.return_value

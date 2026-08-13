@@ -10,6 +10,11 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+MAX_RETRY_AFTER_SECONDS = 60.0
+
+
+class ApiQuotaExceededError(RuntimeError):
+    """Raised when an API asks the caller to wait too long to retry."""
 
 
 def retry_request(
@@ -27,6 +32,11 @@ def retry_request(
             if attempt == attempts - 1 or not _is_retryable(error):
                 raise
             delay = _retry_after(error)
+            if delay is not None and delay > MAX_RETRY_AFTER_SECONDS:
+                raise ApiQuotaExceededError(
+                    f"API quota exhausted; retry after {_format_duration(delay)}. "
+                    "Migration stopped instead of waiting."
+                ) from error
             if delay is None:
                 delay = base_delay * (2**attempt)
             logger.warning(
@@ -67,3 +77,14 @@ def _retry_after(error: Exception) -> float | None:
         return max(0.0, float(value))
     except (TypeError, ValueError):
         return None
+
+
+def _format_duration(seconds: float) -> str:
+    total_seconds = int(seconds)
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, remaining_seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {remaining_seconds}s"
+    return f"{remaining_seconds}s"

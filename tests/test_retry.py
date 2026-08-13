@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 import requests
 
-from music_migrator.core.retry import retry_request
+from music_migrator.core.retry import ApiQuotaExceededError, retry_request
 
 
 def http_error(status: int, retry_after: str | None = None) -> requests.HTTPError:
@@ -22,6 +22,17 @@ def test_retries_rate_limits_using_retry_after():
 
     assert result == "ok"
     sleep.assert_called_once_with(2.0)
+
+
+def test_stops_instead_of_waiting_for_a_long_rate_limit():
+    operation = Mock(side_effect=http_error(429, "83716"))
+    sleep = Mock()
+
+    with pytest.raises(ApiQuotaExceededError, match=r"retry after 23h 15m"):
+        retry_request(operation, sleep=sleep)
+
+    operation.assert_called_once_with()
+    sleep.assert_not_called()
 
 
 def test_retries_transient_server_errors_with_backoff():

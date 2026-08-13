@@ -129,11 +129,7 @@ class Migrator:
                     None,
                 )
                 try:
-                    retry_request(
-                        lambda target=target, desired=desired: self._destination.sync_playlist(
-                            target, desired
-                        )
-                    )
+                    self._destination.sync_playlist(target, desired)
                 except Exception:
                     self._cache.discard([track.source_id for track in tracks])
                     raise
@@ -152,7 +148,7 @@ class Migrator:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
                 try:
-                    changed = retry_request(lambda: self._destination.add_favorites(matched)) > 0
+                    changed = self._destination.add_favorites(matched) > 0
                 except Exception:
                     self._cache.discard([track.source_id for track in tracks])
                     raise
