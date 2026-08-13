@@ -1,8 +1,10 @@
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 PROFILE_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+SERVICE_PATTERN = re.compile(r"^[a-z0-9-]+$")
 ROUTE_PATTERN = re.compile(r"^[a-z0-9-]+-to-[a-z0-9-]+$")
 
 
@@ -16,8 +18,7 @@ class MigrationPaths:
 class ProfilePaths:
     root: Path
     config: Path
-    spotify_session: Path
-    tidal_session: Path
+    sessions_dir: Path
     cache_dir: Path
     log_file: Path
     reports_dir: Path
@@ -30,14 +31,22 @@ class ProfilePaths:
         return cls(
             root=root,
             config=root / "config.yml",
-            spotify_session=root / "spotify-session.json",
-            tidal_session=root / "tidal-session.json",
+            sessions_dir=root / "sessions",
             cache_dir=root / "cache",
             log_file=root / "logs" / "music-migrator.log",
             reports_dir=root / "reports",
         )
 
+    @property
+    def spotify_session(self) -> Path:
+        return self.session_for("spotify")
+
+    @property
+    def tidal_session(self) -> Path:
+        return self.session_for("tidal")
+
     def prepare(self) -> None:
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
         self.reports_dir.mkdir(parents=True, exist_ok=True)
@@ -51,18 +60,20 @@ class ProfilePaths:
         )
 
     def session_for(self, service_name: str) -> Path:
-        sessions = {
-            "spotify": self.spotify_session,
-            "tidal": self.tidal_session,
-        }
-        try:
-            return sessions[service_name]
-        except KeyError as error:
-            raise ValueError(f"unknown session service: {service_name}") from error
+        if not SERVICE_PATTERN.fullmatch(service_name):
+            raise ValueError(f"invalid session service: {service_name}")
+        legacy = self.root / f"{service_name}-session.json"
+        return legacy if legacy.exists() else self.sessions_dir / f"{service_name}.json"
 
-    def reset_auth(self) -> int:
+    def reset_auth(self, service_names: Iterable[str]) -> int:
+        candidates: set[Path] = set()
+        for service_name in service_names:
+            if not SERVICE_PATTERN.fullmatch(service_name):
+                raise ValueError(f"invalid session service: {service_name}")
+            candidates.add(self.root / f"{service_name}-session.json")
+            candidates.add(self.sessions_dir / f"{service_name}.json")
         removed = 0
-        for path in (self.spotify_session, self.tidal_session):
+        for path in candidates:
             if path.exists():
                 path.unlink()
                 removed += 1

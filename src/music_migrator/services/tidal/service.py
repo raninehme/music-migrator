@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 import requests
 import tidalapi
 
+from music_migrator.config import RequestSettings
 from music_migrator.core.matching import strip_title_qualifiers
 from music_migrator.core.models import Playlist, Track
 from music_migrator.services.tidal.auth import create_tidal_session
@@ -15,6 +16,7 @@ T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
+TIDAL_DEFAULT_REQUEST_SETTINGS = RequestSettings(max_concurrency=8, rate_limit=8)
 TIDAL_PAGE_SIZE = 50
 TIDAL_WRITE_BATCH_SIZE = 50
 

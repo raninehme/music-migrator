@@ -5,12 +5,14 @@ from typing import Any
 
 import spotipy
 
-from music_migrator.config import SpotifyConfig
+from music_migrator.config import RequestSettings
 from music_migrator.core.models import Playlist, Track
 from music_migrator.services.spotify.auth import SPOTIFY_DESTINATION_SCOPES, create_spotify_client
+from music_migrator.services.spotify.config import SpotifyConfig
 
 logger = logging.getLogger(__name__)
 
+SPOTIFY_DEFAULT_REQUEST_SETTINGS = RequestSettings(max_concurrency=3, rate_limit=3)
 SPOTIFY_LIBRARY_BATCH_SIZE = 40
 SPOTIFY_PLAYLIST_PAGE_SIZE = 50
 SPOTIFY_SEARCH_LIMIT = 10

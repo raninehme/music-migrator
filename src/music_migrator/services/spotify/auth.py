@@ -4,7 +4,7 @@ import spotipy
 from spotipy.cache_handler import CacheFileHandler
 from spotipy.oauth2 import SpotifyOAuth
 
-from music_migrator.config import SpotifyConfig
+from music_migrator.services.spotify.config import SpotifyConfig
 
 SPOTIFY_SOURCE_SCOPES = "playlist-read-private playlist-read-collaborative user-library-read"
 

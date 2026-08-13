@@ -5,6 +5,7 @@ import pytest
 import yaml
 
 from music_migrator.cli import _handle_migration, _setup_profile, _write_unmatched, main
+from music_migrator.config import MigrationConfig
 from music_migrator.core.migration import CollectionReport, MigrationReport
 from music_migrator.core.models import Track
 from music_migrator.profiles import ProfilePaths
@@ -39,10 +40,13 @@ def test_setup_writes_profile_configuration(tmp_path, monkeypatch):
     _setup_profile(paths, "rani")
 
     raw = yaml.safe_load(paths.config.read_text())
-    assert raw["spotify"]["client_id"] == "client-id"
-    assert raw["spotify"]["client_secret"] == "client-secret"
-    assert raw["max_concurrency"] == 10
-    assert raw["rate_limit"] == 10
+    assert raw["services"]["spotify"]["client_id"] == "client-id"
+    assert raw["services"]["spotify"]["client_secret"] == "client-secret"
+    assert "max_concurrency" not in raw
+    rendered = paths.config.read_text()
+    assert "#   max_concurrency: 3" in rendered
+    assert "#     max_concurrency: 8" in rendered
+    assert MigrationConfig.load(paths.config).service("spotify") is not None
 
 
 def test_setup_refuses_to_overwrite_configuration(tmp_path, monkeypatch):
