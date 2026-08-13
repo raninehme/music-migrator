@@ -4,7 +4,13 @@ import csv
 import pytest
 import yaml
 
-from music_migrator.cli import _handle_migration, _setup_profile, _write_unmatched, main
+from music_migrator.cli import (
+    ConsoleProgress,
+    _handle_migration,
+    _setup_profile,
+    _write_unmatched,
+    main,
+)
 from music_migrator.config import MigrationConfig
 from music_migrator.core.migration import CollectionReport, MigrationReport
 from music_migrator.core.models import Track
@@ -165,3 +171,14 @@ def test_refresh_requires_confirmation_when_non_interactive(tmp_path, monkeypatc
 
     with pytest.raises(RuntimeError, match="add --yes"):
         _handle_migration(args, mocker.Mock(), paths, "rani")
+
+
+def test_console_progress_handles_unknown_stream_length(capsys):
+    progress = ConsoleProgress(quiet=False)
+
+    progress("Matching Large", 7, None)
+    progress("Matching Large", 10, 10)
+
+    output = capsys.readouterr().err
+    assert "Matching Large: 7\r" in output
+    assert "Matching Large: 10/10 (100.0%)\n" in output

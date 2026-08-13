@@ -214,3 +214,64 @@ def test_duplicate_source_playlist_names_stop_before_destination_loading(tmp_pat
     destination.playlists_by_name.assert_not_called()
     destination.create_playlist.assert_not_called()
     destination.sync_playlist.assert_not_called()
+
+
+def test_saved_tracks_are_consumed_incrementally_and_keep_order(tmp_path):
+    tracks = [
+        Track(f"source-{index}", f"Song {index}", ("Artist",), "Album", 180, f"ISRC{index}")
+        for index in range(7)
+    ]
+    source = Mock(saved_tracks_name="Liked Songs")
+    source.playlists.return_value = []
+    source.saved_tracks.return_value = (track for track in tracks)
+    destination = Mock(saved_tracks_name="Favorites")
+    destination.playlists_by_name.return_value = {}
+    destination.search_tracks.side_effect = lambda track, **_: [
+        Track(
+            f"target-{track.source_id}",
+            track.title,
+            track.artists,
+            track.album,
+            track.duration_seconds,
+            track.isrc,
+        )
+    ]
+    destination.favorite_track_ids.return_value = set()
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        report = Migrator(
+            source,
+            destination,
+            cache,
+            dry_run=True,
+            max_concurrency=2,
+        ).migrate(None, True)
+
+    assert report.collections[0].source_tracks == 7
+    assert report.collections[0].matched_tracks == 7
+
+
+def test_late_source_iteration_failure_stops_before_destination_write(tmp_path):
+    first = Track("source-1", "First", ("Artist",), "Album", 180, "ISRC1")
+    source = Mock()
+    source.playlists.return_value = [Playlist("playlist-1", "Mix")]
+
+    def failing_tracks():
+        yield first
+        raise RuntimeError("later page failed")
+
+    source.playlist_tracks.return_value = failing_tracks()
+    destination = Mock()
+    destination.playlists_by_name.return_value = {}
+    destination.search_tracks.return_value = [
+        Track("target-1", "First", ("Artist",), "Album", 180, "ISRC1")
+    ]
+
+    with (
+        MatchCache(tmp_path / "cache.sqlite3") as cache,
+        pytest.raises(RuntimeError, match="later page failed"),
+    ):
+        Migrator(source, destination, cache, dry_run=False).migrate(None, False)
+
+    destination.create_playlist.assert_not_called()
+    destination.sync_playlist.assert_not_called()
