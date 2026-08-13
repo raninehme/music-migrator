@@ -1,0 +1,23 @@
+name: Release source
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  release-source:
+    name: release-source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the release branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "release" ]; then
+            echo "Pull requests into main must come from the release branch."
+            exit 1
+          fi
