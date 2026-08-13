@@ -1,67 +1,55 @@
 # music-migrator
 
-Move or combine your Spotify and TIDAL libraries while keeping playlist order, liked tracks, favorites, and a clear report of anything that could not be matched.
+Move or combine Spotify and TIDAL playlists, liked songs, and favorites while preserving playlist order and reporting tracks that could not be matched.
 
 ## Features
 
-- Spotify to TIDAL and TIDAL to Spotify
-- One-way replacement or safe two-way combination
-- Playlists, Spotify Liked Songs, and TIDAL favorites
-- ISRC-first matching with title, artist, album, and duration fallback
-- Concurrent searches with visible track progress
-- Explicit dry runs before anything is changed
-- Separate authentication, caches, logs, and reports for every profile
+- Migrate Spotify to TIDAL or TIDAL to Spotify.
+- Replace destination playlists or safely combine both services.
+- Include saved tracks, or migrate playlists only.
+- Select one or more playlists by source playlist ID.
+- Preview every migration with `--dry-run` before applying changes.
+- Match tracks by ISRC first, then title, artist, album, and duration.
+- Cache confirmed matches independently for each migration direction.
+- Control search concurrency and request rate per profile.
+- Keep authentication, caches, logs, and reports separate for every profile.
+- Refresh cached matches with `--refresh-matches` when catalogs change.
+- Reset saved login sessions with `--reset-auth` without deleting profile settings.
+- Reduce console output with `--quiet` or include tracebacks with `--debug`.
 
-## Choose a mode
+## Requirements
 
-| Mode | What happens |
-| --- | --- |
-| `replace` | The destination playlist becomes identical to the source. Destination-only tracks can be removed. |
-| `combine` | Matched tracks from both services are kept and added to both. No playlist tracks are removed. |
-
-With `replace`, `--from` and `--to` define the copy direction. With `combine`, both services receive all matched tracks; `--from` chooses the preferred playlist order and the service used by any `--playlist` IDs.
+- Python 3.11 or newer
+- Spotify account and a [Spotify Developer application](https://developer.spotify.com/dashboard)
+- TIDAL account
 
 ## Installation
 
-Requires Python 3.11 or newer, a TIDAL account, and a Spotify account with a [Spotify Developer application](https://developer.spotify.com/dashboard).
-
-Install directly:
-
 ```bash
 python -m pip install git+https://github.com/raninehme/music-migrator.git
 ```
 
-Or use a virtual environment:
+For development setup, see [Contributing](.github/CONTRIBUTING.md).
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install git+https://github.com/raninehme/music-migrator.git
-```
+## Setup
 
-On Windows PowerShell, activate the environment with `.venv\Scripts\Activate.ps1`.
-
-## Quick start
-
-### 1. Configure Spotify
-
-In the Spotify Developer Dashboard, create an application, enable the Web API, and add this exact redirect URI:
+In the Spotify Developer Dashboard, enable the Web API and add this exact redirect URI:
 
 ```text
 http://127.0.0.1:8888/callback
 ```
 
-### 2. Create a profile
+Create a profile:
 
 ```bash
 music-migrator --setup YOUR_PROFILE
 ```
 
-Enter the Spotify client ID and secret when prompted. The first migration opens Spotify and TIDAL login in your browser.
+Enter the Spotify client ID and secret when prompted. The first migration starts the Spotify and TIDAL login flows.
 
-### 3. Preview the migration
+## Run a migration
 
-Replace TIDAL playlists with the Spotify versions:
+Use one command shape for every migration:
 
 ```bash
 music-migrator --profile YOUR_PROFILE \
@@ -71,33 +59,46 @@ music-migrator --profile YOUR_PROFILE \
   --dry-run
 ```
 
-Or safely combine both libraries:
+Review the output, then replace `--dry-run` with `--apply` to write changes.
 
-```bash
-music-migrator --profile YOUR_PROFILE \
-  --from spotify \
-  --to tidal \
-  --mode combine \
-  --dry-run
-```
+### Options
 
-Review both directional reports when using `combine`.
+| Option | Description |
+| --- | --- |
+| `--profile NAME` | Use an existing profile. |
+| `--setup NAME` | Create a profile configuration and exit. |
+| `--from {spotify,tidal}` | Select the source service. Defaults to `spotify`. |
+| `--to {spotify,tidal}` | Select the destination service. Defaults to `tidal`. |
+| `--mode {replace,combine}` | Replace destination playlist contents or combine both services. Defaults to `replace`. |
+| `--dry-run` | Preview changes without writing. |
+| `--apply` | Apply changes. One of `--dry-run` or `--apply` is required for migration. |
+| `--playlist ID` | Migrate one source playlist. Repeat the flag for multiple playlists. |
+| `--no-saved-tracks` | Skip Spotify Liked Songs and TIDAL favorites. |
+| `--refresh-matches` | Clear route-specific cached matches before migrating. |
+| `--reset-auth` | Remove saved Spotify and TIDAL login sessions, then exit. |
+| `--quiet` | Show errors and the final report only. |
+| `--debug` | Include debug logs and tracebacks. |
+| `--version` | Print the installed version. |
 
-### 4. Apply it
+Run `music-migrator --help` for the installed command reference.
 
-Run the same command with `--apply` instead of `--dry-run`:
+## Migration modes
 
-```bash
-music-migrator --profile YOUR_PROFILE \
-  --from spotify \
-  --to tidal \
-  --mode combine \
-  --apply
-```
+### Replace
+
+The destination version of each non-empty source playlist is replaced with the matched source tracks. Destination-only tracks are removed.
+
+Empty source playlists are intentionally skipped. Existing destination playlists are left unchanged and new empty playlists are not created. This prevents an accidentally emptied source playlist from deleting destination contents; empty playlists can be managed manually.
+
+### Combine
+
+Both directions run in sequence. Matched tracks from each service are retained and added to the other service without removing playlist tracks. `--from` determines the preferred playlist order and identifies which service owns IDs passed with `--playlist`.
+
+Liked Songs and TIDAL favorites are add-only in both modes.
 
 ## Configuration
 
-Each profile has its own `.music-migrator/profiles/NAME/config.yml`:
+Each profile stores its configuration at `.music-migrator/profiles/NAME/config.yml`:
 
 ```yaml
 spotify:
@@ -111,90 +112,61 @@ max_concurrency: 10
 rate_limit: 10
 ```
 
-`max_concurrency` controls simultaneous searches. `rate_limit` limits how many searches may start per second. Lower them if a service begins throttling requests. Profile data is ignored by Git; never commit credentials or saved sessions.
+`max_concurrency` controls simultaneous catalog searches. `rate_limit` controls how many searches may start per second. Lower either value if a service begins throttling requests.
 
-## Useful commands
+Boolean values must be YAML booleans such as `true` or `false`, not quoted strings. Concurrency and rate-limit values must be positive integers.
 
-Move in the other direction:
+Profile data is ignored by Git. Never commit credentials, OAuth sessions, caches, logs, or exported personal music data.
 
-```bash
-music-migrator --profile YOUR_PROFILE \
-  --from tidal \
-  --to spotify \
-  --mode replace \
-  --dry-run
-```
+## Reports and local state
 
-Select individual source playlists and skip liked tracks or favorites:
-
-```bash
-music-migrator --profile YOUR_PROFILE \
-  --from spotify \
-  --to tidal \
-  --mode combine \
-  --playlist SPOTIFY_PLAYLIST_ID \
-  --no-saved-tracks \
-  --dry-run
-```
-
-Reset saved logins without deleting configuration, caches, or reports:
-
-```bash
-music-migrator --profile YOUR_PROFILE --reset-auth
-```
-
-Recheck every track instead of using confirmed cached matches:
-
-```bash
-music-migrator --profile YOUR_PROFILE --from spotify --to tidal \
-  --mode replace --refresh-matches --dry-run
-```
-
-Use `--quiet` for the final report only, `--debug` for tracebacks, and `--help` for every option.
-
-## Matching, logs, and reports
-
-The matcher uses ISRC when available, then scores title, artists, album, and duration. Confirmed matches are cached separately for each direction, and matcher updates automatically recheck older cache entries.
-
-Tracks without a reliable match are skipped and written to:
+Unmatched tracks are written per migration direction:
 
 ```text
 .music-migrator/profiles/NAME/reports/SOURCE-to-DESTINATION/unmatched.csv
 ```
 
-Runtime details are written to `.music-migrator/profiles/NAME/logs/music-migrator.log`.
+Runtime logs are written to:
+
+```text
+.music-migrator/profiles/NAME/logs/music-migrator.log
+```
+
+Confirmed matches are cached per direction. Matcher-version changes automatically invalidate older entries. Failed destination writes discard affected entries so the next run searches again. Use `--refresh-matches` to force a complete route refresh.
 
 ## Safety and limitations
 
-- `--dry-run` never creates or updates playlists.
-- `--apply` is always required for changes.
+- Nothing is written unless `--apply` is supplied.
+- Empty source playlists are skipped in both modes.
 - `combine` never removes playlist tracks.
-- Liked Songs and favorites are add-only in both modes.
-- Playlist names identify matching playlists; duplicate names stop the run.
+- Saved tracks and favorites are always add-only.
+- Interrupted playlist replacements attempt to restore the original destination contents before returning an error.
+- Playlist names identify corresponding playlists; duplicate writable names stop the run.
 - Local Spotify files and podcasts are skipped.
 - Regional catalog differences can leave tracks unmatched.
-- The tool moves catalog references, not audio files.
+- The tool migrates catalog references, not audio files.
 
 ## Troubleshooting
 
-- **Login does not finish:** Confirm the redirect URI is exact and port `8888` is free.
-- **Wrong account opens:** Run `music-migrator --profile YOUR_PROFILE --reset-auth`.
-- **Requests are throttled:** Lower `max_concurrency` and `rate_limit` in `config.yml`.
-- **Tracks are missing:** Review the route's `unmatched.csv` report. Add `--refresh-matches` to recheck every cached match.
+- **Login does not finish:** Confirm the redirect URI is exact and port `8888` is available.
+- **Wrong account opens:** Run with `--reset-auth` for the affected profile.
+- **Requests are throttled:** Lower `max_concurrency` and `rate_limit` in the profile configuration.
+- **Tracks are missing:** Review the route-specific `unmatched.csv` and retry with `--refresh-matches`.
+- **A playlist write fails:** The tool attempts restoration and exits with an error. Inspect the destination playlist and runtime log before retrying.
 
-## Development
-
-```bash
-git clone https://github.com/raninehme/music-migrator.git
-cd music-migrator
-python -m pip install -e ".[dev]"
-ruff format --check src tests
-ruff check .
-pytest
-python -m build
-```
+## Contributing
 
 Bug reports and focused contributions are welcome. See the [contribution guide](.github/CONTRIBUTING.md), [security policy](.github/SECURITY.md), and [code of conduct](.github/CODE_OF_CONDUCT.md).
+
+The codebase separates reusable migration behavior from service adapters, application orchestration, and CLI presentation:
+
+```text
+src/music_migrator/
+├── application.py
+├── cli.py
+├── core/
+└── services/
+```
 
 ## License
 
