@@ -1,9 +1,10 @@
+import argparse
 import csv
 
 import pytest
 import yaml
 
-from music_migrator.cli import _setup_profile, _write_unmatched, main
+from music_migrator.cli import _handle_migration, _setup_profile, _write_unmatched, main
 from music_migrator.core.migration import CollectionReport, MigrationReport
 from music_migrator.core.models import Track
 from music_migrator.profiles import ProfilePaths
@@ -61,3 +62,39 @@ def test_migration_mode_is_explicit(tmp_path, monkeypatch):
 
     with pytest.raises(SystemExit):
         main(["--profile", "rani"])
+
+
+def test_migration_handler_delegates_execution_and_presentation(tmp_path, monkeypatch, mocker):
+    monkeypatch.chdir(tmp_path)
+    paths = ProfilePaths.for_name("rani")
+    paths.prepare()
+    paths.config.write_text(
+        """spotify:
+  client_id: client
+  client_secret: secret
+"""
+    )
+    args = argparse.Namespace(
+        apply=False,
+        debug=False,
+        destination_service="tidal",
+        dry_run=True,
+        mode="replace",
+        no_saved_tracks=False,
+        playlist=["playlist-1"],
+        quiet=True,
+        refresh_matches=True,
+        source_service="spotify",
+    )
+    reports = [mocker.Mock()]
+    run_migration = mocker.patch("music_migrator.cli.run_migration", return_value=reports)
+    present_reports = mocker.patch("music_migrator.cli._present_reports")
+
+    result = _handle_migration(args, mocker.Mock(), paths, "rani")
+
+    assert result == 0
+    run_migration.assert_called_once()
+    assert run_migration.call_args.args[0].key == "spotify-to-tidal"
+    assert run_migration.call_args.kwargs["playlist_ids"] == ["playlist-1"]
+    assert run_migration.call_args.kwargs["refresh_matches"] is True
+    present_reports.assert_called_once_with(reports, paths, dry_run=True)

@@ -1,4 +1,4 @@
-from music_migrator.cli import _authenticate_route, main
+from music_migrator.application import _authenticate_route, run_migration
 from music_migrator.config import MigrationConfig, SpotifyConfig
 from music_migrator.core.migration import CollectionReport, MigrationReport
 from music_migrator.core.planning import plan_route
@@ -25,44 +25,31 @@ def test_authenticates_reverse_route_with_service_sessions(mocker):
     assert destination is spotify_destination.return_value
 
 
-def test_combine_runs_both_directions_for_the_selected_playlist_names(
-    tmp_path, monkeypatch, mocker
-):
+def test_combine_runs_both_directions_for_selected_playlist_names(tmp_path, monkeypatch, mocker):
     monkeypatch.chdir(tmp_path)
     paths = ProfilePaths.for_name("rani")
     paths.prepare()
-    paths.config.write_text(
-        """spotify:
-  client_id: client
-  client_secret: secret
-"""
-    )
+    config = MigrationConfig(spotify=SpotifyConfig("client", "secret"))
     forward_report = MigrationReport([CollectionReport("Mix", 1, 1)])
     reverse_report = MigrationReport()
     run_route = mocker.patch(
-        "music_migrator.cli._run_route",
+        "music_migrator.application._run_route",
         side_effect=[forward_report, reverse_report],
     )
-    mocker.patch("music_migrator.cli._print_report")
 
-    result = main(
-        [
-            "--profile",
-            "rani",
-            "--from",
-            "tidal",
-            "--to",
-            "spotify",
-            "--mode",
-            "combine",
-            "--dry-run",
-            "--playlist",
-            "tidal-playlist",
-            "--no-saved-tracks",
-        ]
+    reports = run_migration(
+        plan_route("tidal", "spotify"),
+        config,
+        paths,
+        dry_run=True,
+        mode="combine",
+        playlist_ids=["tidal-playlist"],
+        include_saved=False,
+        refresh_matches=False,
+        progress=mocker.Mock(),
     )
 
-    assert result == 0
+    assert [item.route.key for item in reports] == ["tidal-to-spotify", "spotify-to-tidal"]
     assert run_route.call_count == 2
     forward, reverse = run_route.call_args_list
     assert forward.args[0].key == "tidal-to-spotify"
@@ -72,24 +59,28 @@ def test_combine_runs_both_directions_for_the_selected_playlist_names(
     assert reverse.kwargs["playlist_ids"] is None
     assert reverse.kwargs["playlist_names"] == {"Mix"}
 
-    run_route.reset_mock()
-    run_route.side_effect = [forward_report, reverse_report]
 
-    result = main(
-        [
-            "--profile",
-            "rani",
-            "--from",
-            "tidal",
-            "--to",
-            "spotify",
-            "--mode",
-            "combine",
-            "--dry-run",
-            "--no-saved-tracks",
-        ]
+def test_combine_all_playlists_does_not_filter_reverse_route(tmp_path, monkeypatch, mocker):
+    monkeypatch.chdir(tmp_path)
+    paths = ProfilePaths.for_name("rani")
+    paths.prepare()
+    config = MigrationConfig(spotify=SpotifyConfig("client", "secret"))
+    run_route = mocker.patch(
+        "music_migrator.application._run_route",
+        side_effect=[MigrationReport(), MigrationReport()],
     )
 
-    assert result == 0
-    assert run_route.call_count == 2
+    run_migration(
+        plan_route("tidal", "spotify"),
+        config,
+        paths,
+        dry_run=True,
+        mode="combine",
+        playlist_ids=None,
+        include_saved=False,
+        refresh_matches=False,
+        progress=mocker.Mock(),
+    )
+
     reverse = run_route.call_args_list[1]
+    assert reverse.kwargs["playlist_names"] is None
