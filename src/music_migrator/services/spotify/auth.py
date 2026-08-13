@@ -29,4 +29,9 @@ def create_spotify_client(
         cache_handler=cache,
         requests_timeout=10,
     )
-    return spotipy.Spotify(auth_manager=oauth, requests_timeout=10)
+    return spotipy.Spotify(
+        auth_manager=oauth,
+        requests_timeout=10,
+        retries=0,
+        status_retries=0,
+    )
