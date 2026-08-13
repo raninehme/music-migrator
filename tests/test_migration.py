@@ -195,3 +195,22 @@ def test_failed_playlist_write_discards_cached_matches(tmp_path):
         with pytest.raises(RuntimeError, match="write failed"):
             Migrator(source, destination, cache, dry_run=False).migrate(None, False)
         assert cache.get("source-1", track_fingerprint(source_track)) is None
+
+
+def test_duplicate_source_playlist_names_stop_before_destination_loading(tmp_path):
+    source = Mock()
+    source.playlists.return_value = [
+        Playlist("one", "Duplicate"),
+        Playlist("two", "Duplicate"),
+    ]
+    destination = Mock()
+
+    with (
+        MatchCache(tmp_path / "cache.sqlite3") as cache,
+        pytest.raises(ValueError, match="duplicate playlist names: Duplicate"),
+    ):
+        Migrator(source, destination, cache, dry_run=False).migrate(None, False)
+
+    destination.playlists_by_name.assert_not_called()
+    destination.create_playlist.assert_not_called()
+    destination.sync_playlist.assert_not_called()

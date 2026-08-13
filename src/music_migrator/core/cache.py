@@ -30,11 +30,18 @@ class MatchCache:
     def get(self, source_id: str, source_fingerprint: str) -> str | None:
         with self._lock:
             row = self._connection.execute(
-                "SELECT destination_id FROM matches "
-                "WHERE source_id = ? AND match_version = ? AND source_fingerprint = ?",
-                (source_id, self._match_version, source_fingerprint),
+                "SELECT destination_id, source_fingerprint FROM matches "
+                "WHERE source_id = ? AND match_version = ?",
+                (source_id, self._match_version),
             ).fetchone()
-        return row[0] if row else None
+            if row and row[1] is None:
+                self._connection.execute(
+                    "UPDATE matches SET source_fingerprint = ? WHERE source_id = ?",
+                    (source_fingerprint, source_id),
+                )
+                self._connection.commit()
+                return row[0]
+        return row[0] if row and row[1] == source_fingerprint else None
 
     def put(self, source_id: str, destination_id: str, source_fingerprint: str) -> None:
         with self._lock:

@@ -63,7 +63,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--refresh-matches",
         action="store_true",
-        help="discard cached track matches before running",
+        help="discard cached matches for every route this command runs",
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm a match-cache refresh without an interactive prompt",
     )
     parser.add_argument("--quiet", action="store_true", help="show errors and final report only")
     parser.add_argument("--debug", action="store_true", help="show debug logs and tracebacks")
@@ -74,6 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.yes and not args.refresh_matches:
+        parser.error("--yes may be used only with --refresh-matches")
     profile_name = args.setup or args.profile
     try:
         paths = ProfilePaths.for_name(profile_name)
@@ -133,9 +140,9 @@ def _handle_migration(
 ) -> int:
     if not args.dry_run and not args.apply:
         parser.error("choose exactly one migration mode: --dry-run or --apply")
-
     started = time.perf_counter()
     route = plan_route(args.source_service, args.destination_service)
+    _confirm_match_refresh(args, route)
     config = MigrationConfig.load(paths.config)
     _log_migration_start(args, route, config, profile_name)
 
@@ -158,6 +165,30 @@ def _handle_migration(
     )
     logger.info("Completed in %.1f seconds", time.perf_counter() - started)
     return 0
+
+
+def _confirm_match_refresh(args: argparse.Namespace, route: MigrationRoute) -> None:
+    if not args.refresh_matches:
+        return
+
+    route_keys = [route.key]
+    if args.mode == "combine":
+        route_keys.append(f"{route.destination.name}-to-{route.source.name}")
+    routes = "\n".join(f"  {route_key}" for route_key in route_keys)
+    print(
+        "WARNING: This will clear cached matches for:\n"
+        f"{routes}\n\n"
+        "All tracks will be searched again and may consume significant API quota.",
+        file=sys.stderr,
+    )
+    if args.yes:
+        return
+    if not sys.stdin.isatty():
+        raise RuntimeError(
+            "--refresh-matches requires interactive confirmation; add --yes to continue"
+        )
+    if input("Continue? [y/N] ").strip().casefold() not in {"y", "yes"}:
+        raise RuntimeError("Match refresh cancelled")
 
 
 def _log_migration_start(

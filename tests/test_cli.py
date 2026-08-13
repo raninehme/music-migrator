@@ -85,6 +85,7 @@ def test_migration_handler_delegates_execution_and_presentation(tmp_path, monkey
         quiet=True,
         refresh_matches=True,
         source_service="spotify",
+        yes=True,
     )
     reports = [mocker.Mock()]
     run_migration = mocker.patch("music_migrator.cli.run_migration", return_value=reports)
@@ -103,3 +104,60 @@ def test_migration_handler_delegates_execution_and_presentation(tmp_path, monkey
         dry_run=True,
         show_routes=False,
     )
+
+
+def test_refresh_warns_about_both_combine_routes(tmp_path, monkeypatch, mocker, capsys):
+    monkeypatch.chdir(tmp_path)
+    paths = ProfilePaths.for_name("rani")
+    paths.prepare()
+    paths.config.write_text(
+        """spotify:
+  client_id: client
+  client_secret: secret
+"""
+    )
+    run_migration = mocker.patch("music_migrator.cli.run_migration", return_value=[])
+    args = argparse.Namespace(
+        apply=False,
+        debug=False,
+        destination_service="tidal",
+        dry_run=True,
+        mode="combine",
+        no_saved_tracks=False,
+        playlist=[],
+        quiet=True,
+        refresh_matches=True,
+        source_service="spotify",
+        yes=True,
+    )
+
+    _handle_migration(args, mocker.Mock(), paths, "rani")
+
+    warning = capsys.readouterr().err
+    assert "spotify-to-tidal" in warning
+    assert "tidal-to-spotify" in warning
+    assert "significant API quota" in warning
+    run_migration.assert_called_once()
+
+
+def test_refresh_requires_confirmation_when_non_interactive(tmp_path, monkeypatch, mocker):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("music_migrator.cli.sys.stdin.isatty", lambda: False)
+    paths = ProfilePaths.for_name("rani")
+    paths.prepare()
+    args = argparse.Namespace(
+        apply=False,
+        debug=False,
+        destination_service="tidal",
+        dry_run=True,
+        mode="replace",
+        no_saved_tracks=False,
+        playlist=[],
+        quiet=True,
+        refresh_matches=True,
+        source_service="spotify",
+        yes=False,
+    )
+
+    with pytest.raises(RuntimeError, match="add --yes"):
+        _handle_migration(args, mocker.Mock(), paths, "rani")

@@ -8,7 +8,7 @@ from typing import Literal
 
 from music_migrator.core.cache import MatchCache
 from music_migrator.core.matching import best_match, track_fingerprint
-from music_migrator.core.models import Track, TrackMatch
+from music_migrator.core.models import Playlist, Track, TrackMatch
 from music_migrator.core.retry import retry_request
 from music_migrator.services.base import MusicDestination, MusicSource
 
@@ -96,6 +96,7 @@ class Migrator:
         )
         if playlist_names is not None:
             source_playlists = [item for item in source_playlists if item.name in playlist_names]
+        self._reject_duplicate_playlist_names(source_playlists)
         self._progress(f"Loading {self._destination.display_name} playlists", None, None)
         destinations = retry_request(self._destination.playlists_by_name)
         report = MigrationReport()
@@ -163,6 +164,18 @@ class Migrator:
                 )
             )
         return report
+
+    @staticmethod
+    def _reject_duplicate_playlist_names(playlists: list[Playlist]) -> None:
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for playlist in playlists:
+            if playlist.name in seen:
+                duplicates.add(playlist.name)
+            seen.add(playlist.name)
+        if duplicates:
+            names = ", ".join(sorted(duplicates))
+            raise ValueError(f"Source contains duplicate playlist names: {names}")
 
     def _desired_playlist_tracks(self, matched: list[str], existing: list[str]) -> list[str]:
         if self._mode == "replace":
