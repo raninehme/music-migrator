@@ -7,6 +7,7 @@ import spotipy
 
 from music_migrator.config import RequestSettings
 from music_migrator.core.models import Playlist, Track
+from music_migrator.core.retry import retry_request
 from music_migrator.services.spotify.auth import SPOTIFY_DESTINATION_SCOPES, create_spotify_client
 from music_migrator.services.spotify.config import SpotifyConfig
 
@@ -21,7 +22,7 @@ SPOTIFY_SEARCH_LIMIT = 10
 def _pages(fetch: Callable[[int], dict[str, Any]]) -> Iterator[dict[str, Any]]:
     offset = 0
     while True:
-        page = fetch(offset)
+        page = retry_request(lambda offset=offset: fetch(offset))
         yield from page.get("items") or []
         if not page.get("next"):
             return
@@ -229,7 +230,7 @@ class SpotifyDestination:
         if existing == track_ids:
             return False
         if existing == track_ids[: len(existing)]:
-            self._add_tracks(playlist_id, track_ids[len(existing) :])
+            self._add_tracks(playlist_id, track_ids, start=len(existing))
             return True
         try:
             self._replace_tracks(playlist_id, track_ids)
@@ -277,11 +278,24 @@ class SpotifyDestination:
 
     def _replace_tracks(self, playlist_id: str, track_ids: list[str]) -> None:
         self._client.playlist_replace_items(playlist_id, track_ids[:100])
-        self._add_tracks(playlist_id, track_ids[100:])
+        self._add_tracks(playlist_id, track_ids, start=min(100, len(track_ids)))
 
-    def _add_tracks(self, playlist_id: str, track_ids: list[str]) -> None:
-        for start in range(0, len(track_ids), 100):
-            self._client.playlist_add_items(playlist_id, track_ids[start : start + 100])
+    def _add_tracks(self, playlist_id: str, desired: list[str], *, start: int) -> None:
+        for offset in range(start, len(desired), 100):
+            chunk = desired[offset : offset + 100]
+
+            def add_or_confirm(offset: int = offset, chunk: list[str] = chunk) -> None:
+                try:
+                    self._client.playlist_add_items(playlist_id, chunk)
+                except Exception as error:
+                    current = self.playlist_track_ids({"id": playlist_id})
+                    if current == desired[: offset + len(chunk)]:
+                        return
+                    if current != desired[:offset]:
+                        raise RuntimeError(str(error)) from error
+                    raise
+
+            retry_request(add_or_confirm)
 
     @staticmethod
     def _playlist_id(playlist: Any) -> str:
