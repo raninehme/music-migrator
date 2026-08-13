@@ -228,12 +228,17 @@ class ConsoleProgress:
         self._quiet = quiet
 
     def __call__(self, label: str, current: int | None, total: int | None) -> None:
-        if current is None or total is None:
+        if current is None:
             logger.info(label)
             return
-        if current == 0:
+        if current == 0 and total is not None:
             logger.info("%s: %d tracks", label, total)
-        if self._quiet or total == 0:
+        if self._quiet:
+            return
+        if total is None:
+            print(f"{label}: {current}", end="\r", file=sys.stderr, flush=True)
+            return
+        if total == 0:
             return
         percent = (current / total) * 100
         end = "\n" if current >= total else "\r"
