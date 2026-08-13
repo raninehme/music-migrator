@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from music_migrator.core.matching import strip_title_qualifiers
 from music_migrator.core.models import Track
 from music_migrator.services.tidal.service import TidalDestination
 
@@ -56,3 +57,10 @@ def test_simplifies_soundtrack_and_feature_qualifiers():
     assert simplify('Lose Yourself - From "8 Mile" Soundtrack') == "Lose Yourself"
     assert simplify("Favorite Bitch (feat. Ty Dolla $ign)") == "Favorite Bitch"
     assert simplify("Sunflower - Spider-Man: Into the Spider-Verse") == "Sunflower"
+
+
+def test_tidal_search_reuses_shared_title_qualifier_cleanup():
+    title = "Favorite Bitch (feat. Ty Dolla $ign)"
+
+    assert strip_title_qualifiers(title) == "Favorite Bitch"
+    assert TidalDestination._simplify_title(title) == "Favorite Bitch"

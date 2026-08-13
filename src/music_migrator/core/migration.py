@@ -7,7 +7,7 @@ from threading import Lock
 from typing import Literal
 
 from music_migrator.core.cache import MatchCache
-from music_migrator.core.matching import best_match
+from music_migrator.core.matching import best_match, track_fingerprint
 from music_migrator.core.models import Track, TrackMatch
 from music_migrator.core.retry import retry_request
 from music_migrator.services.base import MusicDestination, MusicSource
@@ -208,7 +208,8 @@ class Migrator:
         return matched, unmatched
 
     def _match_track(self, track: Track) -> TrackMatch:
-        cached = self._cache.get(track.source_id)
+        fingerprint = track_fingerprint(track)
+        cached = self._cache.get(track.source_id, fingerprint)
         if cached:
             return TrackMatch(track, cached, 1.0, "cache")
         candidates = retry_request(
@@ -216,5 +217,5 @@ class Migrator:
         )
         result = best_match(track, candidates)
         if result.destination_id:
-            self._cache.put(track.source_id, result.destination_id)
+            self._cache.put(track.source_id, result.destination_id, fingerprint)
         return result

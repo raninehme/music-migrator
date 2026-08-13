@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 import requests
 import tidalapi
 
+from music_migrator.core.matching import strip_title_qualifiers
 from music_migrator.core.models import Playlist, Track
 from music_migrator.services.tidal.auth import create_tidal_session
 
@@ -135,13 +136,7 @@ class TidalDestination:
 
     @staticmethod
     def _simplify_title(title: str) -> str:
-        title = re.sub(r"\s+-\s+from\b.*$", "", title, flags=re.IGNORECASE)
-        title = re.sub(
-            r"\s*[\[(][^\])]*\b(?:feat(?:uring)?\.?|with)\b[^\])]*[\])]",
-            "",
-            title,
-            flags=re.IGNORECASE,
-        )
+        title = strip_title_qualifiers(title)
         title = re.sub(r"\s+-\s+.*$", "", title)
         return title.strip()
 

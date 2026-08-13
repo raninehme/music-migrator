@@ -1,3 +1,4 @@
+import hashlib
 import re
 import unicodedata
 from difflib import SequenceMatcher
@@ -5,6 +6,14 @@ from difflib import SequenceMatcher
 from music_migrator.core.models import Track, TrackMatch
 
 MATCH_VERSION = 2
+MATCH_THRESHOLD = 0.78
+TITLE_WEIGHT = 0.45
+ARTIST_WEIGHT = 0.35
+DURATION_WEIGHT = 0.15
+ALBUM_WEIGHT = 0.05
+TITLE_VARIANT_DURATION_TOLERANCE_SECONDS = 10
+DURATION_SCORE_WINDOW_SECONDS = 20
+UNKNOWN_DURATION_SCORE = 0.5
 
 
 def normalize(value: str | None) -> str:
@@ -14,17 +23,32 @@ def normalize(value: str | None) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", ascii_value.casefold()))
 
 
-def normalize_title(value: str | None) -> str:
-    if not value:
-        return ""
+def strip_title_qualifiers(value: str) -> str:
+    """Remove soundtrack and featured-artist qualifiers while preserving display text."""
     value = re.sub(r"\s+-\s+from\b.*$", "", value, flags=re.IGNORECASE)
-    value = re.sub(
+    return re.sub(
         r"\s*[\[(][^\])]*\b(?:feat(?:uring)?\.?|with)\b[^\])]*[\])]",
         "",
         value,
         flags=re.IGNORECASE,
+    ).strip()
+
+
+def normalize_title(value: str | None) -> str:
+    return normalize(strip_title_qualifiers(value)) if value else ""
+
+
+def track_fingerprint(track: Track) -> str:
+    """Return a stable fingerprint of source metadata that influences matching."""
+    duration = "" if track.duration_seconds is None else f"{track.duration_seconds:.3f}"
+    metadata = (
+        normalize_title(track.title),
+        "\x1f".join(normalize(artist) for artist in track.artists),
+        normalize(track.album),
+        duration,
+        (track.isrc or "").strip().casefold(),
     )
-    return normalize(value)
+    return hashlib.sha256("\x00".join(metadata).encode()).hexdigest()
 
 
 def score(source: Track, candidate: Track) -> TrackMatch:
@@ -39,11 +63,20 @@ def score(source: Track, candidate: Track) -> TrackMatch:
     )
     album = SequenceMatcher(None, normalize(source.album), normalize(candidate.album)).ratio()
     duration = _duration_score(source.duration_seconds, candidate.duration_seconds)
-    confidence = (title * 0.45) + (artists * 0.35) + (duration * 0.15) + (album * 0.05)
+    confidence = (
+        (title * TITLE_WEIGHT)
+        + (artists * ARTIST_WEIGHT)
+        + (duration * DURATION_WEIGHT)
+        + (album * ALBUM_WEIGHT)
+    )
     return TrackMatch(source, candidate.source_id, round(confidence, 4), "metadata")
 
 
-def best_match(source: Track, candidates: list[Track], threshold: float = 0.78) -> TrackMatch:
+def best_match(
+    source: Track,
+    candidates: list[Track],
+    threshold: float = MATCH_THRESHOLD,
+) -> TrackMatch:
     if not candidates:
         return TrackMatch(source, None, 0.0, "no candidates")
     result = max(
@@ -71,7 +104,11 @@ def _title_score(source: Track, candidate: Track) -> float:
     return canonical
 
 
-def _durations_close(left: float | None, right: float | None, tolerance: float = 10) -> bool:
+def _durations_close(
+    left: float | None,
+    right: float | None,
+    tolerance: float = TITLE_VARIANT_DURATION_TOLERANCE_SECONDS,
+) -> bool:
     return left is not None and right is not None and abs(left - right) <= tolerance
 
 
@@ -96,6 +133,6 @@ def _artist_variants(values: tuple[str, ...]) -> set[str]:
 
 def _duration_score(left: float | None, right: float | None) -> float:
     if left is None or right is None:
-        return 0.5
+        return UNKNOWN_DURATION_SCORE
     difference = abs(left - right)
-    return max(0.0, 1.0 - (difference / 20.0))
+    return max(0.0, 1.0 - (difference / DURATION_SCORE_WINDOW_SECONDS))
