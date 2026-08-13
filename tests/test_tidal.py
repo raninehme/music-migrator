@@ -9,7 +9,7 @@ from music_migrator.services.tidal.service import TidalDestination
 
 def test_playlist_sync_appends_when_existing_is_prefix():
     playlist = Mock()
-    playlist.tracks_paginated.return_value = [SimpleNamespace(id="1")]
+    playlist.tracks.return_value = [SimpleNamespace(id="1")]
     destination = TidalDestination(Mock())
 
     assert destination.sync_playlist(playlist, ["1", "2"]) is True
@@ -19,7 +19,7 @@ def test_playlist_sync_appends_when_existing_is_prefix():
 
 def test_playlist_sync_replaces_different_contents():
     playlist = Mock()
-    playlist.tracks_paginated.return_value = [SimpleNamespace(id="old")]
+    playlist.tracks.return_value = [SimpleNamespace(id="old")]
     destination = TidalDestination(Mock())
 
     destination.sync_playlist(playlist, ["new"])
@@ -51,7 +51,7 @@ def test_loads_tidal_favorite_track_ids():
 
 def test_restores_tidal_playlist_after_interrupted_replacement():
     playlist = Mock()
-    playlist.tracks_paginated.return_value = [SimpleNamespace(id="old")]
+    playlist.tracks.return_value = [SimpleNamespace(id="old")]
     playlist.add.side_effect = [RuntimeError("write failed"), None]
     destination = TidalDestination(Mock())
 
@@ -60,3 +60,18 @@ def test_restores_tidal_playlist_after_interrupted_replacement():
 
     assert playlist.clear.call_count == 2
     assert playlist.add.call_args_list == [call(["new"]), call(["old"])]
+
+
+def test_confirms_append_that_succeeded_before_response_failed():
+    playlist = Mock()
+    playlist.tracks.side_effect = [
+        [SimpleNamespace(id="one")],
+        [SimpleNamespace(id="one"), SimpleNamespace(id="two")],
+    ]
+    playlist.add.side_effect = requests.Timeout("response lost")
+    destination = TidalDestination(Mock())
+
+    changed = destination.sync_playlist(playlist, ["one", "two"])
+
+    assert changed is True
+    playlist.add.assert_called_once_with(["two"])

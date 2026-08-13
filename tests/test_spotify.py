@@ -1,3 +1,5 @@
+import requests
+
 from music_migrator.services.spotify.service import SpotifySource
 
 
@@ -105,3 +107,20 @@ def test_current_user_profile_is_cached(mocker):
     list(source.playlists())
 
     client.current_user.assert_called_once_with()
+
+
+def test_retries_a_failed_playlist_track_page(mocker):
+    client = mocker.Mock()
+    client.playlist_items.side_effect = [
+        requests.Timeout("temporary"),
+        {
+            "items": [{"item": spotify_track("track-1")}],
+            "next": None,
+            "limit": 50,
+        },
+    ]
+
+    tracks = list(SpotifySource(client).playlist_tracks("playlist"))
+
+    assert [track.source_id for track in tracks] == ["track-1"]
+    assert client.playlist_items.call_count == 2

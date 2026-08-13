@@ -16,8 +16,10 @@ jobs:
       - name: Require the release branch
         env:
           HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          if [ "$HEAD_REF" != "release" ]; then
+          if [ "$HEAD_REF" != "release" ] || [ "$HEAD_REPOSITORY" != "$REPOSITORY" ]; then
             echo "Pull requests into main must come from the release branch."
             exit 1
           fi

@@ -181,4 +181,4 @@ src/music_migrator/
 
 ## License
 
-[PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use is not permitted.
+[Apache License 2.0](LICENSE).
