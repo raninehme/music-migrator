@@ -4,6 +4,29 @@ Bug reports, documentation improvements, focused fixes, and new service adapters
 
 Open an issue before starting a large behavioral change or new integration. Keep pull requests focused and include tests for new behavior and bug fixes.
 
+## Branch workflow
+
+The default `main` branch contains the latest stable release. Feature, fix, test, and
+documentation pull requests must target `release`, not `main`.
+
+Create a branch from the latest `release` branch:
+
+```bash
+git fetch origin
+git switch release
+git pull --ff-only
+git switch -c fix/short-description
+```
+
+Open the pull request with `release` as its base branch. Merged branches from this repository
+are deleted automatically, while the protected `release` branch remains available for the next
+contribution.
+
+The `release` branch collects and validates the next release. Only the final release pull request
+targets `main`. Before opening that pull request, the maintainer updates the package version on
+`release` and runs the combined release checks. After it merges, the resulting `main` commit is
+tagged with the same version; the tag triggers the GitHub release workflow.
+
 ## Development setup
 
 Use Python 3.11 or newer and install the development dependencies:
