@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from music_migrator.core.models import Track
 from music_migrator.services.spotify.auth import SPOTIFY_DESTINATION_SCOPES
 from music_migrator.services.spotify.service import SpotifyDestination
@@ -143,3 +145,22 @@ def test_checks_saved_tracks_in_current_api_batches(mocker):
     assert added == 1
     assert client.current_user_saved_tracks_contains.call_count == 2
     client.current_user_saved_tracks_add.assert_called_once_with(["40"])
+
+
+def test_restores_spotify_playlist_after_interrupted_replacement(mocker):
+    client = mocker.Mock()
+    client.playlist_items.return_value = {
+        "items": [{"item": spotify_track("old")}],
+        "next": None,
+    }
+    client.playlist_add_items.side_effect = RuntimeError("write failed")
+    destination = SpotifyDestination(client)
+    desired = [str(index) for index in range(101)]
+
+    with pytest.raises(RuntimeError, match="write failed"):
+        destination.sync_playlist({"id": "playlist-1"}, desired)
+
+    assert client.playlist_replace_items.call_args_list == [
+        mocker.call("playlist-1", desired[:100]),
+        mocker.call("playlist-1", ["old"]),
+    ]

@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -7,6 +8,8 @@ import spotipy
 from music_migrator.config import SpotifyConfig
 from music_migrator.core.models import Playlist, Track
 from music_migrator.services.spotify.auth import SPOTIFY_DESTINATION_SCOPES, create_spotify_client
+
+logger = logging.getLogger(__name__)
 
 SPOTIFY_LIBRARY_BATCH_SIZE = 40
 SPOTIFY_PLAYLIST_PAGE_SIZE = 50
@@ -226,8 +229,15 @@ class SpotifyDestination:
         if existing == track_ids[: len(existing)]:
             self._add_tracks(playlist_id, track_ids[len(existing) :])
             return True
-        self._client.playlist_replace_items(playlist_id, track_ids[:100])
-        self._add_tracks(playlist_id, track_ids[100:])
+        try:
+            self._replace_tracks(playlist_id, track_ids)
+        except Exception:
+            logger.warning("Playlist update failed; restoring original Spotify tracks")
+            try:
+                self._replace_tracks(playlist_id, existing)
+            except Exception:
+                logger.exception("Could not restore the original Spotify playlist")
+            raise
         return True
 
     def favorite_track_ids(self) -> set[str]:
@@ -262,6 +272,10 @@ class SpotifyDestination:
                 raise ValueError("Spotify profile did not contain a user ID")
             self._user_id = user_id
         return self._user_id
+
+    def _replace_tracks(self, playlist_id: str, track_ids: list[str]) -> None:
+        self._client.playlist_replace_items(playlist_id, track_ids[:100])
+        self._add_tracks(playlist_id, track_ids[100:])
 
     def _add_tracks(self, playlist_id: str, track_ids: list[str]) -> None:
         for start in range(0, len(track_ids), 100):
