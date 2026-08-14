@@ -5,11 +5,13 @@ from pathlib import Path
 from music_migrator.config import MigrationConfig, RequestSettings
 from music_migrator.services.base import MusicDestination, MusicSource
 from music_migrator.services.spotify.config import SpotifyConfig
+from music_migrator.services.spotify.config import setup_profile as setup_spotify_profile
 from music_migrator.services.spotify.service import (
     SPOTIFY_DEFAULT_REQUEST_SETTINGS,
     SpotifyDestination,
     SpotifySource,
 )
+from music_migrator.services.tidal.config import setup_profile as setup_tidal_profile
 from music_migrator.services.tidal.service import (
     TIDAL_DEFAULT_REQUEST_SETTINGS,
     TidalDestination,
@@ -19,6 +21,7 @@ from music_migrator.services.tidal.service import (
 SourceAuthenticator = Callable[[MigrationConfig, Path], MusicSource]
 DestinationAuthenticator = Callable[[MigrationConfig, Path], MusicDestination]
 ConfigValidator = Callable[[MigrationConfig], None]
+ProfileSetup = Callable[[RequestSettings], str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +35,7 @@ class Service:
     authenticate_source: SourceAuthenticator | None = None
     authenticate_destination: DestinationAuthenticator | None = None
     validate_config: ConfigValidator | None = None
+    profile_setup: ProfileSetup | None = None
 
 
 def _spotify_config(config: MigrationConfig) -> SpotifyConfig:
@@ -70,6 +74,7 @@ SERVICES = {
         authenticate_source=_spotify_source,
         authenticate_destination=_spotify_destination,
         validate_config=_validate_spotify,
+        profile_setup=setup_spotify_profile,
     ),
     "tidal": Service(
         name="tidal",
@@ -78,6 +83,7 @@ SERVICES = {
         destination=TidalDestination,
         authenticate_source=_tidal_source,
         authenticate_destination=_tidal_destination,
+        profile_setup=setup_tidal_profile,
     ),
 }
 

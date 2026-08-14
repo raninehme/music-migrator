@@ -1,6 +1,6 @@
 import pytest
 
-from music_migrator.config import MigrationConfig, RequestSettings
+from music_migrator.config import MigrationConfig, RequestSettings, render_profile_config
 from music_migrator.services.spotify.config import SpotifyConfig
 
 
@@ -35,7 +35,7 @@ def test_loads_existing_spotify_configuration():
 
 
 def test_allows_profiles_without_spotify():
-    config = MigrationConfig.from_mapping({"services": {"tidal": {}}})
+    config = MigrationConfig.from_mapping({"services": {"tidal": None}})
 
     assert config.service("spotify") is None
     assert config.service("tidal") == {}
@@ -105,3 +105,11 @@ def test_service_defaults_apply_without_overrides():
     config = MigrationConfig.from_mapping({})
 
     assert config.requests_for("spotify", RequestSettings(3, 3)) == RequestSettings(3, 3)
+
+
+def test_profile_renderer_only_assembles_provider_sections():
+    rendered = render_profile_config(["  spotify:\n    client_id: client\n", "  # tidal:\n"])
+
+    assert rendered == (
+        "services:\n  spotify:\n    client_id: client\n  # tidal:\n\ninclude_saved_tracks: true\n"
+    )

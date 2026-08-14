@@ -20,6 +20,12 @@ def test_normalize_handles_accents_and_punctuation():
     assert normalize("Beyoncé: Halo!") == "beyonce halo"
 
 
+def test_normalize_preserves_non_latin_scripts():
+    assert normalize("فيروز") == "فيروز"
+    assert normalize("宇多田ヒカル") == "宇多田ヒカル"
+    assert normalize("아이유") == "아이유"
+
+
 def test_isrc_is_an_exact_match():
     result = score(track(isrc="ABC"), track("2", title="Other", isrc="abc"))
     assert result.destination_id == "2"
