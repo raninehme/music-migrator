@@ -1,6 +1,5 @@
 import argparse
 import csv
-import getpass
 import logging
 import sys
 import time
@@ -300,14 +299,13 @@ def _setup_profile(paths: ProfilePaths, profile_name: str) -> None:
     if paths.config.exists():
         raise FileExistsError(f"Profile '{profile_name}' is already configured at {paths.config}")
 
-    client_id = input("Spotify client ID: ").strip()
-    client_secret = getpass.getpass("Spotify client secret: ").strip()
-    if not client_id or not client_secret:
-        raise ValueError("Spotify client ID and client secret are required")
-
+    sections = [
+        service.profile_setup(service.request_defaults)
+        for service in SERVICES.values()
+        if service.profile_setup is not None
+    ]
     with paths.config.open("x", encoding="utf-8") as output:
-        request_defaults = {name: service.request_defaults for name, service in SERVICES.items()}
-        output.write(render_profile_config(client_id, client_secret, request_defaults))
+        output.write(render_profile_config(sections))
     paths.config.chmod(0o600)
     logger.info("Created profile %s at %s", profile_name, paths.config)
 
