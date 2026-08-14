@@ -111,9 +111,5 @@ def test_profile_renderer_only_assembles_provider_sections():
     rendered = render_profile_config(["  spotify:\n    client_id: client\n", "  # tidal:\n"])
 
     assert rendered == (
-        "services:\n"
-        "  spotify:\n"
-        "    client_id: client\n"
-        "  # tidal:\n"
-        "\ninclude_saved_tracks: true\n"
+        "services:\n  spotify:\n    client_id: client\n  # tidal:\n\ninclude_saved_tracks: true\n"
     )
