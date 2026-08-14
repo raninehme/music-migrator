@@ -23,3 +23,44 @@ jobs:
             echo "Pull requests into main must come from the release branch."
             exit 1
           fi
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install version parser
+        run: python -m pip install packaging
+
+      - name: Require a newer package version
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python - <<'PY'
+          import os
+          import subprocess
+          import tomllib
+
+          from packaging.version import Version
+
+          with open("pyproject.toml", "rb") as config_file:
+              release_version = Version(tomllib.load(config_file)["project"]["version"])
+
+          main_config = subprocess.check_output(
+              ["git", "show", f"{os.environ['BASE_SHA']}:pyproject.toml"],
+              text=True,
+          )
+          main_version = Version(tomllib.loads(main_config)["project"]["version"])
+
+          print(f"main version: {main_version}")
+          print(f"release version: {release_version}")
+
+          if release_version <= main_version:
+              raise SystemExit(
+                  f"release version {release_version} must be newer than main version {main_version}"
+              )
+          PY
