@@ -103,10 +103,11 @@ def _handle_setup(
 ) -> int:
     if args.dry_run or args.apply or args.reset_auth or args.refresh_matches:
         parser.error("--setup cannot be combined with migration or reset options")
+    route = plan_route(args.source_service, args.destination_service)
     _setup_profile(
         paths,
         args.setup,
-        (args.source_service, args.destination_service),
+        (route.source.name, route.destination.name),
     )
     return 0
 
@@ -308,7 +309,7 @@ def _setup_profile(
         raise FileExistsError(f"Profile '{profile_name}' is already configured at {paths.config}")
 
     sections = []
-    for service_name in dict.fromkeys(service_names):
+    for service_name in service_names:
         service = SERVICES[service_name]
         if service.profile_setup is not None:
             sections.append(service.profile_setup(service.request_defaults))
