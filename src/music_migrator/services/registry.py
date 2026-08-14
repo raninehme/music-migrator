@@ -4,10 +4,8 @@ from pathlib import Path
 
 from music_migrator.config import MigrationConfig, RequestSettings
 from music_migrator.services.base import MusicDestination, MusicSource
-from music_migrator.services.spotify.config import (
-    SpotifyConfig,
-    setup_profile as setup_spotify_profile,
-)
+from music_migrator.services.spotify.config import SpotifyConfig
+from music_migrator.services.spotify.config import setup_profile as setup_spotify_profile
 from music_migrator.services.spotify.service import (
     SPOTIFY_DEFAULT_REQUEST_SETTINGS,
     SpotifyDestination,
