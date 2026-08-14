@@ -8,8 +8,8 @@ def test_named_profile_is_fully_isolated(tmp_path, monkeypatch):
     paths = ProfilePaths.for_name("rani")
     root = ".music-migrator/profiles/rani"
     assert paths.config.as_posix() == f"{root}/config.yml"
-    assert paths.spotify_session.as_posix() == f"{root}/sessions/spotify.json"
-    assert paths.tidal_session.as_posix() == f"{root}/sessions/tidal.json"
+    assert paths.session_for("spotify").as_posix() == f"{root}/sessions/spotify.json"
+    assert paths.session_for("tidal").as_posix() == f"{root}/sessions/tidal.json"
     assert paths.cache_dir.as_posix() == f"{root}/cache"
     assert paths.log_file.as_posix() == f"{root}/logs/music-migrator.log"
     assert paths.reports_dir.as_posix() == f"{root}/reports"
@@ -49,13 +49,15 @@ def test_reset_auth_removes_only_session_files(tmp_path, monkeypatch):
     paths = ProfilePaths.for_name("girlfriend")
     paths.prepare()
     route_paths = paths.for_route("spotify-to-tidal")
-    paths.spotify_session.write_text("spotify")
-    paths.tidal_session.write_text("tidal")
+    spotify_session = paths.session_for("spotify")
+    tidal_session = paths.session_for("tidal")
+    spotify_session.write_text("spotify")
+    tidal_session.write_text("tidal")
     route_paths.match_cache.write_text("cache")
 
     assert paths.reset_auth(["spotify", "tidal"]) == 2
-    assert not paths.spotify_session.exists()
-    assert not paths.tidal_session.exists()
+    assert not spotify_session.exists()
+    assert not tidal_session.exists()
     assert route_paths.match_cache.exists()
 
 

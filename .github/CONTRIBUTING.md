@@ -23,9 +23,12 @@ are deleted automatically, while the protected `release` branch remains availabl
 contribution.
 
 The `release` branch collects and validates the next release. Only the final release pull request
-targets `main`. Before opening that pull request, the maintainer updates the package version on
-`release` and runs the combined release checks. After it merges, the resulting `main` commit is
-tagged with the same version; the tag triggers the GitHub release workflow.
+targets `main`. Before opening that pull request, the maintainer updates the package version in
+`pyproject.toml` on `release`. The release-source check requires that version to be newer than the
+version on `main` and requires the pull request to come from this repository's `release` branch.
+After the release pull request is merged, the push to `main` runs the release workflow. That
+workflow validates and builds the package, creates the matching `v<version>` tag, and publishes
+the GitHub Release with the built wheel and source archive.
 
 ## Development setup
 

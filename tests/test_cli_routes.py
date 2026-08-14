@@ -24,9 +24,9 @@ def test_authenticates_reverse_route_with_service_sessions(mocker):
         paths,
     )
 
-    tidal_source.assert_called_once_with(paths.tidal_session)
+    tidal_source.assert_called_once_with(paths.session_for("tidal"))
     spotify_destination.assert_called_once_with(
-        SpotifyConfig("client", "secret"), paths.spotify_session
+        SpotifyConfig("client", "secret"), paths.session_for("spotify")
     )
     assert source is tidal_source.return_value
     assert destination is spotify_destination.return_value
