@@ -35,7 +35,7 @@ def test_loads_existing_spotify_configuration():
 
 
 def test_allows_profiles_without_spotify():
-    config = MigrationConfig.from_mapping({"services": {"tidal": {}}})
+    config = MigrationConfig.from_mapping({"services": {"tidal": None}})
 
     assert config.service("spotify") is None
     assert config.service("tidal") == {}
