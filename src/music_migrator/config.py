@@ -105,33 +105,28 @@ def render_profile_config(
 ) -> str:
     """Render a discoverable profile without requiring optional request settings."""
     spotify_requests = request_defaults["spotify"]
-    lines = [
-        "services:",
-        "  spotify:",
-        f"    client_id: {json.dumps(client_id)}",
-        f"    client_secret: {json.dumps(client_secret)}",
-        f"    redirect_uri: {DEFAULT_REDIRECT_URI}",
-        "    open_browser: true",
-        "",
-        "    # Optional request limits. Uncomment only to override the safe defaults.",
-        "    # requests:",
-        f"    #   max_concurrency: {spotify_requests.max_concurrency}",
-        f"    #   rate_limit: {spotify_requests.rate_limit}",
-    ]
+    service_overrides = "".join(
+        f"""
+  # {service_name}:
+  #   requests:
+  #     max_concurrency: {defaults.max_concurrency}
+  #     rate_limit: {defaults.rate_limit}
+"""
+        for service_name, defaults in sorted(request_defaults.items())
+        if service_name != "spotify"
+    )
 
-    for service_name in sorted(request_defaults):
-        if service_name == "spotify":
-            continue
-        defaults = request_defaults[service_name]
-        lines.extend(
-            [
-                "",
-                f"  # {service_name}:",
-                "  #   requests:",
-                f"  #     max_concurrency: {defaults.max_concurrency}",
-                f"  #     rate_limit: {defaults.rate_limit}",
-            ]
-        )
+    return f"""services:
+  spotify:
+    client_id: {json.dumps(client_id)}
+    client_secret: {json.dumps(client_secret)}
+    redirect_uri: {DEFAULT_REDIRECT_URI}
+    open_browser: true
 
-    lines.extend(["", "include_saved_tracks: true", ""])
-    return "\n".join(lines)
+    # Optional request limits. Uncomment only to override the safe defaults.
+    # requests:
+    #   max_concurrency: {spotify_requests.max_concurrency}
+    #   rate_limit: {spotify_requests.rate_limit}
+{service_overrides}
+include_saved_tracks: true
+"""
