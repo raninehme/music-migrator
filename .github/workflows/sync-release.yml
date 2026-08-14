@@ -1,0 +1,56 @@
+name: Sync release branch
+
+on:
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  sync-release:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or reuse main-to-release pull request
+        id: sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number="$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --base release \
+              --head main \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [ -z "$pr_number" ]; then
+            pr_url="$(
+              gh pr create \
+                --repo "$GITHUB_REPOSITORY" \
+                --base release \
+                --head main \
+                --title "Sync main into release" \
+                --body "Synchronize release history after a successful release. This PR must use a merge commit, never squash or rebase."
+            )"
+            pr_number="${pr_url##*/}"
+          fi
+
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Queue merge-commit synchronization
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.sync.outputs.pr_number }}
+        run: |
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --auto \
+            --merge
