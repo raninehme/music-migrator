@@ -103,7 +103,11 @@ def _handle_setup(
 ) -> int:
     if args.dry_run or args.apply or args.reset_auth or args.refresh_matches:
         parser.error("--setup cannot be combined with migration or reset options")
-    _setup_profile(paths, args.setup)
+    _setup_profile(
+        paths,
+        args.setup,
+        (args.source_service, args.destination_service),
+    )
     return 0
 
 
@@ -295,15 +299,20 @@ def _write_unmatched(report: MigrationReport, path: Path) -> None:
     logger.warning("Unmatched tracks written to %s", path)
 
 
-def _setup_profile(paths: ProfilePaths, profile_name: str) -> None:
+def _setup_profile(
+    paths: ProfilePaths,
+    profile_name: str,
+    service_names: Iterable[str],
+) -> None:
     if paths.config.exists():
         raise FileExistsError(f"Profile '{profile_name}' is already configured at {paths.config}")
 
-    sections = [
-        service.profile_setup(service.request_defaults)
-        for service in SERVICES.values()
-        if service.profile_setup is not None
-    ]
+    sections = []
+    for service_name in dict.fromkeys(service_names):
+        service = SERVICES[service_name]
+        if service.profile_setup is not None:
+            sections.append(service.profile_setup(service.request_defaults))
+
     with paths.config.open("x", encoding="utf-8") as output:
         output.write(render_profile_config(sections))
     paths.config.chmod(0o600)
