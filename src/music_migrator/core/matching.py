@@ -5,7 +5,7 @@ from difflib import SequenceMatcher
 
 from music_migrator.core.models import Track, TrackMatch
 
-MATCH_VERSION = 2
+MATCH_VERSION = 3
 MATCH_THRESHOLD = 0.78
 TITLE_WEIGHT = 0.45
 ARTIST_WEIGHT = 0.35
@@ -19,8 +19,12 @@ UNKNOWN_DURATION_SCORE = 0.5
 def normalize(value: str | None) -> str:
     if not value:
         return ""
-    ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
-    return " ".join(re.findall(r"[a-z0-9]+", ascii_value.casefold()))
+    decomposed = unicodedata.normalize("NFKD", value)
+    without_marks = "".join(
+        character for character in decomposed if not unicodedata.combining(character)
+    )
+    normalized = unicodedata.normalize("NFC", without_marks)
+    return " ".join(re.findall(r"[^\W_]+", normalized.casefold(), flags=re.UNICODE))
 
 
 def strip_title_qualifiers(value: str) -> str:
