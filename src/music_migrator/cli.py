@@ -1,6 +1,5 @@
 import argparse
 import csv
-import getpass
 import logging
 import sys
 import time
@@ -104,7 +103,12 @@ def _handle_setup(
 ) -> int:
     if args.dry_run or args.apply or args.reset_auth or args.refresh_matches:
         parser.error("--setup cannot be combined with migration or reset options")
-    _setup_profile(paths, args.setup)
+    route = plan_route(args.source_service, args.destination_service)
+    _setup_profile(
+        paths,
+        args.setup,
+        (route.source.name, route.destination.name),
+    )
     return 0
 
 
@@ -296,18 +300,22 @@ def _write_unmatched(report: MigrationReport, path: Path) -> None:
     logger.warning("Unmatched tracks written to %s", path)
 
 
-def _setup_profile(paths: ProfilePaths, profile_name: str) -> None:
+def _setup_profile(
+    paths: ProfilePaths,
+    profile_name: str,
+    service_names: Iterable[str],
+) -> None:
     if paths.config.exists():
         raise FileExistsError(f"Profile '{profile_name}' is already configured at {paths.config}")
 
-    client_id = input("Spotify client ID: ").strip()
-    client_secret = getpass.getpass("Spotify client secret: ").strip()
-    if not client_id or not client_secret:
-        raise ValueError("Spotify client ID and client secret are required")
+    sections = []
+    for service_name in service_names:
+        service = SERVICES[service_name]
+        if service.profile_setup is not None:
+            sections.append(service.profile_setup(service.request_defaults))
 
     with paths.config.open("x", encoding="utf-8") as output:
-        request_defaults = {name: service.request_defaults for name, service in SERVICES.items()}
-        output.write(render_profile_config(client_id, client_secret, request_defaults))
+        output.write(render_profile_config(sections))
     paths.config.chmod(0o600)
     logger.info("Created profile %s at %s", profile_name, paths.config)
 

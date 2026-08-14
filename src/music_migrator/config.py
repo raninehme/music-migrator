@@ -1,12 +1,9 @@
-import json
-from collections.abc import Mapping
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
-
-DEFAULT_REDIRECT_URI = "http://127.0.0.1:8888/callback"
 
 
 def _boolean(raw: dict[str, Any], key: str, default: bool) -> bool:
@@ -53,14 +50,18 @@ class MigrationConfig:
         if not isinstance(services_raw, dict):
             raise ValueError("services must be a mapping")
 
-        services = dict(services_raw)
-        if "spotify" not in services and "spotify" in raw:
-            services["spotify"] = raw["spotify"]
+        raw_services = dict(services_raw)
+        if "spotify" not in raw_services and "spotify" in raw:
+            raw_services["spotify"] = raw["spotify"]
 
+        services: dict[str, dict[str, Any]] = {}
         service_requests: dict[str, RequestSettings] = {}
-        for service_name, service_raw in services.items():
+        for service_name, service_raw in raw_services.items():
+            if service_raw is None:
+                service_raw = {}
             if not isinstance(service_raw, dict):
                 raise ValueError(f"services.{service_name} must be a mapping")
+            services[service_name] = service_raw
             requests_raw = service_raw.get("requests")
             if requests_raw is None:
                 continue
@@ -98,31 +99,6 @@ class MigrationConfig:
         return defaults
 
 
-def render_profile_config(
-    client_id: str,
-    client_secret: str,
-    request_defaults: Mapping[str, RequestSettings],
-) -> str:
-    """Render a discoverable profile without requiring optional request settings."""
-    spotify_requests = request_defaults["spotify"]
-    tidal_requests = request_defaults["tidal"]
-    return f"""services:
-  spotify:
-    client_id: {json.dumps(client_id)}
-    client_secret: {json.dumps(client_secret)}
-    redirect_uri: {DEFAULT_REDIRECT_URI}
-    open_browser: true
-
-    # Optional request limits. Uncomment only to override the safe defaults.
-    # requests:
-    #   max_concurrency: {spotify_requests.max_concurrency}
-    #   rate_limit: {spotify_requests.rate_limit}
-
-  # TIDAL authentication starts when a migration first uses TIDAL.
-  # tidal:
-  #   requests:
-  #     max_concurrency: {tidal_requests.max_concurrency}
-  #     rate_limit: {tidal_requests.rate_limit}
-
-include_saved_tracks: true
-"""
+def render_profile_config(service_sections: Iterable[str]) -> str:
+    """Assemble provider-owned profile sections into one configuration file."""
+    return "services:\n" + "".join(service_sections) + "\ninclude_saved_tracks: true\n"
