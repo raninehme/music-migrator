@@ -39,7 +39,10 @@ def test_unmatched_report_deduplicates_source_tracks(tmp_path):
 def test_setup_writes_profile_configuration(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("builtins.input", lambda _: "client-id")
-    monkeypatch.setattr("music_migrator.cli.getpass.getpass", lambda _: "client-secret")
+    monkeypatch.setattr(
+        "music_migrator.services.spotify.config.getpass.getpass",
+        lambda _: "client-secret",
+    )
     paths = ProfilePaths.for_name("rani")
     paths.prepare()
 
@@ -51,6 +54,7 @@ def test_setup_writes_profile_configuration(tmp_path, monkeypatch):
     assert "max_concurrency" not in raw
     rendered = paths.config.read_text()
     assert "#   max_concurrency: 3" in rendered
+    assert "# TIDAL authentication starts" in rendered
     assert "#     max_concurrency: 8" in rendered
     assert MigrationConfig.load(paths.config).service("spotify") is not None
 
