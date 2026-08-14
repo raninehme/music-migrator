@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "music-migrator"
-version = "0.4.1"
+version = "1.0.0"
 description = "Move playlists and saved tracks between music services"
 readme = "README.md"
 requires-python = ">=3.11"
