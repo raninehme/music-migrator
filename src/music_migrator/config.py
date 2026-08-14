@@ -50,14 +50,18 @@ class MigrationConfig:
         if not isinstance(services_raw, dict):
             raise ValueError("services must be a mapping")
 
-        services = dict(services_raw)
-        if "spotify" not in services and "spotify" in raw:
-            services["spotify"] = raw["spotify"]
+        raw_services = dict(services_raw)
+        if "spotify" not in raw_services and "spotify" in raw:
+            raw_services["spotify"] = raw["spotify"]
 
+        services: dict[str, dict[str, Any]] = {}
         service_requests: dict[str, RequestSettings] = {}
-        for service_name, service_raw in services.items():
+        for service_name, service_raw in raw_services.items():
+            if service_raw is None:
+                service_raw = {}
             if not isinstance(service_raw, dict):
                 raise ValueError(f"services.{service_name} must be a mapping")
+            services[service_name] = service_raw
             requests_raw = service_raw.get("requests")
             if requests_raw is None:
                 continue
