@@ -30,6 +30,10 @@ After the release pull request is merged, the push to `main` runs the release wo
 workflow validates and builds the package, creates the matching `v<version>` tag, and publishes
 the GitHub Release with the built wheel and source archive.
 
+After a successful release, the sync-release workflow opens or reuses a `main` to `release` pull
+request and queues it for a merge-commit auto-merge. This keeps the long-lived branches in the
+same commit history. A main-to-release sync must never be squash-merged or rebased.
+
 ## Development setup
 
 Use Python 3.11 or newer and install the development dependencies:
