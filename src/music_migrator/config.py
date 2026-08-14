@@ -1,12 +1,9 @@
-import json
-from collections.abc import Mapping
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
-
-DEFAULT_REDIRECT_URI = "http://127.0.0.1:8888/callback"
 
 
 def _boolean(raw: dict[str, Any], key: str, default: bool) -> bool:
@@ -98,35 +95,6 @@ class MigrationConfig:
         return defaults
 
 
-def render_profile_config(
-    client_id: str,
-    client_secret: str,
-    request_defaults: Mapping[str, RequestSettings],
-) -> str:
-    """Render a discoverable profile without requiring optional request settings."""
-    spotify_requests = request_defaults["spotify"]
-    service_overrides = "".join(
-        f"""
-  # {service_name}:
-  #   requests:
-  #     max_concurrency: {defaults.max_concurrency}
-  #     rate_limit: {defaults.rate_limit}
-"""
-        for service_name, defaults in sorted(request_defaults.items())
-        if service_name != "spotify"
-    )
-
-    return f"""services:
-  spotify:
-    client_id: {json.dumps(client_id)}
-    client_secret: {json.dumps(client_secret)}
-    redirect_uri: {DEFAULT_REDIRECT_URI}
-    open_browser: true
-
-    # Optional request limits. Uncomment only to override the safe defaults.
-    # requests:
-    #   max_concurrency: {spotify_requests.max_concurrency}
-    #   rate_limit: {spotify_requests.rate_limit}
-{service_overrides}
-include_saved_tracks: true
-"""
+def render_profile_config(service_sections: Iterable[str]) -> str:
+    """Assemble provider-owned profile sections into one configuration file."""
+    return "services:\n" + "".join(service_sections) + "\ninclude_saved_tracks: true\n"
