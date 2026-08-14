@@ -1,6 +1,6 @@
 import pytest
 
-from music_migrator.config import MigrationConfig, RequestSettings
+from music_migrator.config import MigrationConfig, RequestSettings, render_profile_config
 from music_migrator.services.spotify.config import SpotifyConfig
 
 
@@ -105,3 +105,19 @@ def test_service_defaults_apply_without_overrides():
     config = MigrationConfig.from_mapping({})
 
     assert config.requests_for("spotify", RequestSettings(3, 3)) == RequestSettings(3, 3)
+
+
+def test_profile_renderer_includes_registered_service_request_defaults():
+    rendered = render_profile_config(
+        "client",
+        "secret",
+        {
+            "spotify": RequestSettings(3, 3),
+            "tidal": RequestSettings(8, 8),
+            "youtube_music": RequestSettings(2, 2),
+        },
+    )
+
+    assert "# youtube_music:" in rendered
+    assert "#     max_concurrency: 2" in rendered
+    assert "#     rate_limit: 2" in rendered
