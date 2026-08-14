@@ -20,7 +20,9 @@ def normalize(value: str | None) -> str:
     if not value:
         return ""
     decomposed = unicodedata.normalize("NFKD", value)
-    without_marks = "".join(character for character in decomposed if not unicodedata.combining(character))
+    without_marks = "".join(
+        character for character in decomposed if not unicodedata.combining(character)
+    )
     return " ".join(re.findall(r"[^\W_]+", without_marks.casefold(), flags=re.UNICODE))
 
 
