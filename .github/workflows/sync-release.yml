@@ -8,7 +8,7 @@ on:
       - completed
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -63,7 +63,7 @@ jobs:
 
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
 
-      - name: Queue merge-commit synchronization
+      - name: Merge main into release
         if: steps.compare.outputs.needs_sync == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -71,5 +71,4 @@ jobs:
         run: |
           gh pr merge "$PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --auto \
             --merge
