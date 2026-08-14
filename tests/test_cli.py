@@ -62,19 +62,14 @@ def test_setup_writes_selected_profile_configuration(tmp_path, monkeypatch):
     assert config.service("tidal") == {}
 
 
-def test_setup_only_configures_selected_services(tmp_path, monkeypatch):
+def test_setup_rejects_same_source_and_destination(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+
+    result = main(["--setup", "tidal-only", "--from", "tidal", "--to", "tidal"])
+
+    assert result == 1
     paths = ProfilePaths.for_name("tidal-only")
-    paths.prepare()
-
-    _setup_profile(paths, "tidal-only", ("tidal", "tidal"))
-
-    rendered = paths.config.read_text()
-    assert "spotify" not in rendered.casefold()
-    assert rendered.count("  tidal:") == 1
-    config = MigrationConfig.load(paths.config)
-    assert config.service("spotify") is None
-    assert config.service("tidal") == {}
+    assert not paths.config.exists()
 
 
 def test_setup_refuses_to_overwrite_configuration(tmp_path, monkeypatch):
