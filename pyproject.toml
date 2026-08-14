@@ -11,12 +11,26 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Rani Nehme" }]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Sound/Audio",
+]
 dependencies = [
   "PyYAML>=6.0,<7",
   "requests>=2.32,<3",
   "spotipy>=2.26,<3",
   "tidalapi>=0.8.11,<0.9",
 ]
+
+[project.urls]
+Homepage = "https://github.com/raninehme/music-migrator"
+Repository = "https://github.com/raninehme/music-migrator"
+Issues = "https://github.com/raninehme/music-migrator/issues"
 
 [project.optional-dependencies]
 dev = [

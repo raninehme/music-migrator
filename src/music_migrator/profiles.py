@@ -39,10 +39,12 @@ class ProfilePaths:
 
     @property
     def spotify_session(self) -> Path:
+        """Return the Spotify session path for backward compatibility."""
         return self.session_for("spotify")
 
     @property
     def tidal_session(self) -> Path:
+        """Return the TIDAL session path for backward compatibility."""
         return self.session_for("tidal")
 
     def prepare(self) -> None:
