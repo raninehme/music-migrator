@@ -36,7 +36,7 @@ def test_unmatched_report_deduplicates_source_tracks(tmp_path):
     assert rows[0]["source_id"] == "spotify-1"
 
 
-def test_setup_writes_profile_configuration(tmp_path, monkeypatch):
+def test_setup_writes_selected_profile_configuration(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("builtins.input", lambda _: "client-id")
     monkeypatch.setattr(
@@ -46,17 +46,35 @@ def test_setup_writes_profile_configuration(tmp_path, monkeypatch):
     paths = ProfilePaths.for_name("rani")
     paths.prepare()
 
-    _setup_profile(paths, "rani")
+    _setup_profile(paths, "rani", ("spotify", "tidal"))
 
     raw = yaml.safe_load(paths.config.read_text())
     assert raw["services"]["spotify"]["client_id"] == "client-id"
     assert raw["services"]["spotify"]["client_secret"] == "client-secret"
+    assert raw["services"]["tidal"] is None
     assert "max_concurrency" not in raw
     rendered = paths.config.read_text()
     assert "#   max_concurrency: 3" in rendered
     assert "# TIDAL authentication starts" in rendered
-    assert "#     max_concurrency: 8" in rendered
-    assert MigrationConfig.load(paths.config).service("spotify") is not None
+    assert "#   max_concurrency: 8" in rendered
+    config = MigrationConfig.load(paths.config)
+    assert config.service("spotify") is not None
+    assert config.service("tidal") == {}
+
+
+def test_setup_only_configures_selected_services(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    paths = ProfilePaths.for_name("tidal-only")
+    paths.prepare()
+
+    _setup_profile(paths, "tidal-only", ("tidal", "tidal"))
+
+    rendered = paths.config.read_text()
+    assert "spotify" not in rendered.casefold()
+    assert rendered.count("  tidal:") == 1
+    config = MigrationConfig.load(paths.config)
+    assert config.service("spotify") is None
+    assert config.service("tidal") == {}
 
 
 def test_setup_refuses_to_overwrite_configuration(tmp_path, monkeypatch):
@@ -66,7 +84,7 @@ def test_setup_refuses_to_overwrite_configuration(tmp_path, monkeypatch):
     paths.config.write_text("existing")
 
     with pytest.raises(FileExistsError, match="already configured"):
-        _setup_profile(paths, "rani")
+        _setup_profile(paths, "rani", ("spotify", "tidal"))
 
     assert paths.config.read_text() == "existing"
 
