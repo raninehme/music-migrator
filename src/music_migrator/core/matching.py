@@ -23,7 +23,8 @@ def normalize(value: str | None) -> str:
     without_marks = "".join(
         character for character in decomposed if not unicodedata.combining(character)
     )
-    return " ".join(re.findall(r"[^\W_]+", without_marks.casefold(), flags=re.UNICODE))
+    normalized = unicodedata.normalize("NFC", without_marks)
+    return " ".join(re.findall(r"[^\W_]+", normalized.casefold(), flags=re.UNICODE))
 
 
 def strip_title_qualifiers(value: str) -> str:
