@@ -16,7 +16,25 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      - name: Check whether release needs synchronization
+        id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          behind_by="$(
+            gh api \
+              "repos/$GITHUB_REPOSITORY/compare/main...release" \
+              --jq '.behind_by'
+          )"
+          if [ "$behind_by" -eq 0 ]; then
+            echo "needs_sync=false" >> "$GITHUB_OUTPUT"
+            echo "release already contains main"
+          else
+            echo "needs_sync=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Open or reuse main-to-release pull request
+        if: steps.compare.outputs.needs_sync == 'true'
         id: sync
         env:
           GH_TOKEN: ${{ github.token }}
@@ -46,6 +64,7 @@ jobs:
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
 
       - name: Queue merge-commit synchronization
+        if: steps.compare.outputs.needs_sync == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.sync.outputs.pr_number }}
