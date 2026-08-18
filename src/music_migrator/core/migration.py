@@ -3,9 +3,9 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from music_migrator.core.models import Playlist, Track
 from music_migrator.core.retry import retry_request
 from music_migrator.domain.collections import CollectionSnapshot
+from music_migrator.domain.models import Playlist, Track
 from music_migrator.matching import MatchCache, MatchEngine
 from music_migrator.reconciliation import (
     PlaylistMode,
