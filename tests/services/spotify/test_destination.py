@@ -106,14 +106,14 @@ def test_replaces_planned_playlist_contents(mocker):
     client.playlist_add_items.assert_not_called()
 
 
-def test_loads_spotify_favorite_track_ids(mocker):
+def test_loads_spotify_saved_track_ids(mocker):
     client = mocker.Mock()
     client.current_user_saved_tracks.return_value = {
         "items": [{"item": spotify_track("one")}, {"item": spotify_track("two")}],
         "next": None,
     }
 
-    result = SpotifyDestination(client).favorite_track_ids()
+    result = SpotifyDestination(client).saved_track_ids()
 
     assert result == {"one", "two"}
 
@@ -122,7 +122,7 @@ def test_adds_only_missing_saved_tracks(mocker):
     client = mocker.Mock()
     client.current_user_saved_tracks_contains.return_value = [True, False, False]
 
-    added = SpotifyDestination(client).add_favorites(["one", "two", "three"])
+    added = SpotifyDestination(client).add_saved_tracks(["one", "two", "three"])
 
     assert added == 2
     client.current_user_saved_tracks_add.assert_called_once_with(["two", "three"])
@@ -135,7 +135,7 @@ def test_checks_saved_tracks_in_current_api_batches(mocker):
         [False],
     ]
 
-    added = SpotifyDestination(client).add_favorites([str(index) for index in range(41)])
+    added = SpotifyDestination(client).add_saved_tracks([str(index) for index in range(41)])
 
     assert added == 1
     assert client.current_user_saved_tracks_contains.call_count == 2
