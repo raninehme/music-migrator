@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 
-from music_migrator.core.retry import retry_request
 from music_migrator.domain.collections import CollectionSnapshot
 from music_migrator.domain.models import Playlist
 from music_migrator.matching import MatchCache, MatchEngine
@@ -15,6 +14,7 @@ from music_migrator.reconciliation import (
     plan_saved_tracks,
 )
 from music_migrator.services.base import MusicDestination, MusicSource
+from music_migrator.transport.retry import retry_request
 
 
 class Migrator:
