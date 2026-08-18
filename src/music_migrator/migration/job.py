@@ -17,7 +17,7 @@ from music_migrator.reconciliation import (
 from music_migrator.services.base import MusicDestination, MusicSource
 
 
-class MigrationJob:
+class Migrator:
     """Execute one provider-to-provider migration route."""
 
     def __init__(
@@ -47,7 +47,7 @@ class MigrationJob:
             progress=self._progress,
         )
 
-    def run(
+    def migrate(
         self,
         playlist_ids: list[str] | None,
         include_saved: bool,
