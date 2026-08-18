@@ -8,8 +8,8 @@ DESTINATION_METHODS = (
     "playlist_track_ids",
     "append_playlist_tracks",
     "replace_playlist_tracks",
-    "favorite_track_ids",
-    "add_favorites",
+    "saved_track_ids",
+    "add_saved_tracks",
 )
 
 
