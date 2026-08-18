@@ -10,8 +10,8 @@ from music_migrator import __version__
 from music_migrator.application import RouteReport, run_migration
 from music_migrator.config import MigrationConfig, render_profile_config
 from music_migrator.core.migration import MigrationReport
-from music_migrator.core.models import Track
 from music_migrator.core.planning import MigrationRoute, plan_route
+from music_migrator.domain.models import Track
 from music_migrator.logging_config import configure_logging
 from music_migrator.profiles import ProfilePaths
 from music_migrator.services.registry import SERVICES
