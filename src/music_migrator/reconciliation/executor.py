@@ -29,7 +29,7 @@ class ReconciliationWriter(Protocol):
         original_track_ids: list[str],
     ) -> None: ...
 
-    def add_favorites(self, track_ids: list[str]) -> int: ...
+    def add_saved_tracks(self, track_ids: list[str]) -> int: ...
 
 
 def apply_playlist_plan(
@@ -60,4 +60,4 @@ def apply_saved_tracks_plan(writer: ReconciliationWriter, plan: ReconciliationPl
     for operation in plan.operations:
         if not isinstance(operation, AddSavedTracks):
             raise TypeError(f"unsupported saved-track operation: {type(operation).__name__}")
-        writer.add_favorites(list(operation.track_ids))
+        writer.add_saved_tracks(list(operation.track_ids))
