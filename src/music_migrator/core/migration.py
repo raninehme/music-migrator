@@ -12,7 +12,13 @@ from music_migrator.core.matching import best_match, track_fingerprint
 from music_migrator.core.models import Playlist, Track, TrackMatch
 from music_migrator.core.retry import retry_request
 from music_migrator.domain.collections import CollectionSnapshot
-from music_migrator.reconciliation import PlaylistMode, plan_playlist, plan_saved_tracks
+from music_migrator.reconciliation import (
+    PlaylistMode,
+    apply_playlist_plan,
+    apply_saved_tracks_plan,
+    plan_playlist,
+    plan_saved_tracks,
+)
 from music_migrator.services.base import MusicDestination, MusicSource
 
 
@@ -145,7 +151,7 @@ class Migrator:
                     None,
                     None,
                 )
-                self._destination.sync_playlist(target, list(plan.desired.track_ids))
+                apply_playlist_plan(self._destination, target, plan)
             report.collections.append(
                 CollectionReport(
                     playlist.name,
@@ -170,11 +176,7 @@ class Migrator:
             if not self._dry_run and changed:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
-                existing_ids = set(plan.current.track_ids)
-                missing = [
-                    track_id for track_id in plan.desired.track_ids if track_id not in existing_ids
-                ]
-                self._destination.add_favorites(missing)
+                apply_saved_tracks_plan(self._destination, plan)
             report.collections.append(
                 CollectionReport(
                     collection_name,
