@@ -1,3 +1,5 @@
+"""Define provider contracts for discovery, matching, and primitive destination writes."""
+
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any, Protocol
 
@@ -20,7 +22,7 @@ class MusicSource(Protocol):
 
 
 class MusicDestination(Protocol):
-    """Search and update playlists and favorites on a music service."""
+    """Search destination state and execute provider-specific write primitives."""
 
     display_name: str
     saved_tracks_name: str
@@ -38,7 +40,21 @@ class MusicDestination(Protocol):
 
     def playlist_track_ids(self, playlist: Any) -> list[str]: ...
 
-    def sync_playlist(self, playlist: Any, track_ids: list[str]) -> bool: ...
+    def append_playlist_tracks(
+        self,
+        playlist: Any,
+        track_ids: list[str],
+        *,
+        expected_before: list[str],
+    ) -> None: ...
+
+    def replace_playlist_tracks(
+        self,
+        playlist: Any,
+        track_ids: list[str],
+        *,
+        original_track_ids: list[str],
+    ) -> None: ...
 
     def favorite_track_ids(self) -> set[str]: ...
 
