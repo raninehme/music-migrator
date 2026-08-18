@@ -1,12 +1,12 @@
 """Orchestrate collection discovery, matching, reconciliation, and provider writes."""
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
 
 from music_migrator.core.retry import retry_request
 from music_migrator.domain.collections import CollectionSnapshot
-from music_migrator.domain.models import Playlist, Track
+from music_migrator.domain.models import Playlist
 from music_migrator.matching import MatchCache, MatchEngine
+from music_migrator.migration.reports import CollectionReport, MigrationReport
 from music_migrator.reconciliation import (
     PlaylistMode,
     apply_playlist_plan,
@@ -17,30 +17,9 @@ from music_migrator.reconciliation import (
 from music_migrator.services.base import MusicDestination, MusicSource
 
 
-@dataclass(slots=True)
-class CollectionReport:
-    name: str
-    source_tracks: int
-    matched_tracks: int
-    unmatched: list[Track] = field(default_factory=list)
-    changed: bool = False
-    saved: bool = False
-
-
-@dataclass(slots=True)
-class MigrationReport:
-    collections: list[CollectionReport] = field(default_factory=list)
-
-    @property
-    def matched(self) -> int:
-        return sum(item.matched_tracks for item in self.collections)
-
-    @property
-    def unmatched(self) -> list[Track]:
-        return [track for item in self.collections for track in item.unmatched]
-
-
 class Migrator:
+    """Execute one provider-to-provider migration route."""
+
     def __init__(
         self,
         source: MusicSource,
@@ -75,6 +54,7 @@ class Migrator:
         *,
         playlist_names: set[str] | None = None,
     ) -> MigrationReport:
+        """Discover selected collections and reconcile them with the destination."""
         self._progress(f"Loading {self._source.display_name} playlists", None, None)
         source_playlists = (
             [retry_request(lambda item=item: self._source.playlist(item)) for item in playlist_ids]

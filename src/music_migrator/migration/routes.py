@@ -1,3 +1,5 @@
+"""Resolve and validate source-to-destination migration routes."""
+
 from dataclasses import dataclass
 
 from music_migrator.services.registry import Service, get_service

@@ -3,9 +3,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from music_migrator.core.migration import Migrator
 from music_migrator.domain.models import Playlist, Track
 from music_migrator.matching import MatchCache, track_fingerprint
+from music_migrator.migration import Migrator
 
 
 def test_dry_run_never_creates_or_changes_playlist(tmp_path):

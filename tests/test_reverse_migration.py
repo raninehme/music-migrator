@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from music_migrator.core.migration import Migrator
 from music_migrator.matching import MatchCache
+from music_migrator.migration import Migrator
 from music_migrator.services.spotify.service import SpotifyDestination
 from music_migrator.services.tidal.service import TidalSource
 

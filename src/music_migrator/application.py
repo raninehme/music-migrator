@@ -5,9 +5,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
 from music_migrator.config import MigrationConfig
-from music_migrator.core.migration import MigrationReport, Migrator
-from music_migrator.core.planning import MigrationRoute, plan_route
 from music_migrator.matching import MatchCache
+from music_migrator.migration import MigrationReport, MigrationRoute, Migrator, plan_route
 from music_migrator.profiles import ProfilePaths
 from music_migrator.reconciliation import PlaylistMode
 from music_migrator.services.base import MusicDestination, MusicSource

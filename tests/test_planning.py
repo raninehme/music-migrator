@@ -1,6 +1,6 @@
 import pytest
 
-from music_migrator.core.planning import plan_route
+from music_migrator.migration import plan_route
 
 
 @pytest.mark.parametrize(
