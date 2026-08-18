@@ -4,7 +4,7 @@ import hashlib
 import re
 import unicodedata
 
-from music_migrator.core.models import Track
+from music_migrator.domain.models import Track
 
 
 def normalize(value: str | None) -> str:
