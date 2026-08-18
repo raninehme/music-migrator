@@ -8,10 +8,10 @@ from typing import Any
 import spotipy
 
 from music_migrator.config import RequestSettings
-from music_migrator.core.retry import retry_request
 from music_migrator.domain.models import Playlist, Track
 from music_migrator.services.spotify.auth import SPOTIFY_DESTINATION_SCOPES, create_spotify_client
 from music_migrator.services.spotify.config import SpotifyConfig
+from music_migrator.transport.retry import retry_request
 
 logger = logging.getLogger(__name__)
 
