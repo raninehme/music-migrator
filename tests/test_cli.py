@@ -13,7 +13,7 @@ from music_migrator.cli import (
 )
 from music_migrator.config import MigrationConfig
 from music_migrator.core.migration import CollectionReport, MigrationReport
-from music_migrator.core.models import Track
+from music_migrator.domain.models import Track
 from music_migrator.profiles import ProfilePaths
 
 
