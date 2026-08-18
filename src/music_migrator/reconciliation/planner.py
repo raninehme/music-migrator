@@ -58,7 +58,5 @@ def plan_saved_tracks(
     desired = desired_saved_tracks_snapshot(matched_track_ids, current)
     current_ids = set(current.track_ids)
     missing = tuple(track_id for track_id in desired.track_ids if track_id not in current_ids)
-    operations: tuple[ReconciliationOperation, ...] = (
-        (AddSavedTracks(missing),) if missing else ()
-    )
+    operations: tuple[ReconciliationOperation, ...] = (AddSavedTracks(missing),) if missing else ()
     return ReconciliationPlan(current=current, desired=desired, operations=operations)
