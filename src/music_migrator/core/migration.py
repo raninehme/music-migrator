@@ -6,9 +6,14 @@ from dataclasses import dataclass, field
 from threading import Lock
 
 from music_migrator.core.cache import MatchCache
+from music_migrator.core.journal import CollectionStatus, MigrationJournal
 from music_migrator.core.matching import best_match, track_fingerprint
 from music_migrator.core.models import Playlist, Track, TrackMatch
-from music_migrator.core.reconciliation import PlaylistMode, plan_playlist
+from music_migrator.core.reconciliation import (
+    PlaylistMode,
+    fingerprint_track_ids,
+    plan_playlist,
+)
 from music_migrator.core.retry import retry_request
 from music_migrator.services.base import MusicDestination, MusicSource
 
@@ -78,6 +83,8 @@ class Migrator:
         max_concurrency: int = 10,
         rate_limit: int = 10,
         progress: Callable[[str, int | None, int | None], None] | None = None,
+        journal: MigrationJournal | None = None,
+        run_id: int | None = None,
     ):
         self._source = source
         self._destination = destination
@@ -85,10 +92,14 @@ class Migrator:
         self._dry_run = dry_run
         if mode not in ("combine", "replace"):
             raise ValueError(f"unknown migration mode: {mode}")
+        if (journal is None) != (run_id is None):
+            raise ValueError("journal and run_id must be provided together")
         self._mode = mode
         self._max_concurrency = max_concurrency
         self._rate_limiter = RateLimiter(rate_limit)
         self._progress = progress or (lambda _label, _current, _total: None)
+        self._journal = journal
+        self._run_id = run_id
 
     def migrate(
         self,
@@ -123,6 +134,12 @@ class Migrator:
             )
             plan = plan_playlist(results.matched, existing, mode=self._mode)
             changed = target is None or plan.changed
+            self._mark_collection(
+                f"playlist:{playlist.source_id}",
+                kind="playlist",
+                status="in_progress",
+                desired_fingerprint=plan.desired_fingerprint,
+            )
             if not self._dry_run and changed:
                 if target is None:
                     self._progress(
@@ -138,6 +155,12 @@ class Migrator:
                     None,
                 )
                 self._destination.sync_playlist(target, list(plan.desired))
+            self._mark_collection(
+                f"playlist:{playlist.source_id}",
+                kind="playlist",
+                status="completed",
+                desired_fingerprint=plan.desired_fingerprint,
+            )
             report.collections.append(
                 CollectionReport(
                     playlist.name,
@@ -151,6 +174,13 @@ class Migrator:
         if include_saved:
             collection_name = self._source.saved_tracks_name
             results = self._match_tracks(self._source.saved_tracks(), collection_name)
+            desired_fingerprint = fingerprint_track_ids(results.matched)
+            self._mark_collection(
+                "saved-tracks",
+                kind="saved_tracks",
+                status="in_progress",
+                desired_fingerprint=desired_fingerprint,
+            )
             if self._dry_run:
                 existing = retry_request(self._destination.favorite_track_ids)
                 changed = any(track_id not in existing for track_id in results.matched)
@@ -158,6 +188,12 @@ class Migrator:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
                 changed = self._destination.add_favorites(results.matched) > 0
+            self._mark_collection(
+                "saved-tracks",
+                kind="saved_tracks",
+                status="completed",
+                desired_fingerprint=desired_fingerprint,
+            )
             report.collections.append(
                 CollectionReport(
                     collection_name,
@@ -181,6 +217,24 @@ class Migrator:
         if duplicates:
             names = ", ".join(sorted(duplicates))
             raise ValueError(f"Source contains duplicate playlist names: {names}")
+
+    def _mark_collection(
+        self,
+        collection_key: str,
+        *,
+        kind: str,
+        status: CollectionStatus,
+        desired_fingerprint: str,
+    ) -> None:
+        if self._dry_run or self._journal is None or self._run_id is None:
+            return
+        self._journal.mark_collection(
+            self._run_id,
+            collection_key,
+            kind=kind,
+            status=status,
+            desired_fingerprint=desired_fingerprint,
+        )
 
     def _match_tracks(self, tracks: Iterable[Track], collection_name: str) -> MatchResults:
         label = f"Matching {collection_name}"
