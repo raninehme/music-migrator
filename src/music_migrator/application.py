@@ -1,12 +1,15 @@
+"""Wire configured providers and migration components into executable routes."""
+
 import logging
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
 from music_migrator.config import MigrationConfig
 from music_migrator.core.cache import MatchCache
-from music_migrator.core.migration import MigrationReport, Migrator, PlaylistMode
+from music_migrator.core.migration import MigrationReport, Migrator
 from music_migrator.core.planning import MigrationRoute, plan_route
 from music_migrator.profiles import ProfilePaths
+from music_migrator.reconciliation import PlaylistMode
 from music_migrator.services.base import MusicDestination, MusicSource
 
 logger = logging.getLogger(__name__)
