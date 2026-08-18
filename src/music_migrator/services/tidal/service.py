@@ -1,3 +1,5 @@
+"""Adapt TIDAL APIs to provider-neutral source and destination contracts."""
+
 import logging
 import re
 from collections.abc import Callable, Iterator
@@ -149,23 +151,32 @@ class TidalDestination:
         title = re.sub(r"\s+-\s+.*$", "", title)
         return title.strip()
 
-    def sync_playlist(self, playlist: Any, track_ids: list[str]) -> bool:
-        existing = self.playlist_track_ids(playlist)
-        if existing == track_ids:
-            return False
-        if existing == track_ids[: len(existing)]:
-            self._add_tracks(playlist, track_ids, start=len(existing))
-            return True
+    def append_playlist_tracks(
+        self,
+        playlist: Any,
+        track_ids: list[str],
+        *,
+        expected_before: list[str],
+    ) -> None:
+        desired = [*expected_before, *track_ids]
+        self._add_tracks(playlist, desired, start=len(expected_before))
+
+    def replace_playlist_tracks(
+        self,
+        playlist: Any,
+        track_ids: list[str],
+        *,
+        original_track_ids: list[str],
+    ) -> None:
         try:
-            self._replace_tracks(playlist, track_ids, clear=bool(existing))
+            self._replace_tracks(playlist, track_ids, clear=bool(original_track_ids))
         except Exception:
             logger.warning("Playlist update failed; restoring original TIDAL tracks")
             try:
-                self._replace_tracks(playlist, existing, clear=True)
+                self._replace_tracks(playlist, original_track_ids, clear=True)
             except Exception:
                 logger.exception("Could not restore the original TIDAL playlist")
             raise
-        return True
 
     @staticmethod
     def playlist_track_ids(playlist: Any) -> list[str]:
@@ -176,14 +187,14 @@ class TidalDestination:
             )
         ]
 
-    def add_favorites(self, track_ids: list[str]) -> int:
-        existing = self.favorite_track_ids()
+    def add_saved_tracks(self, track_ids: list[str]) -> int:
+        existing = self.saved_track_ids()
         missing = [track_id for track_id in track_ids if track_id not in existing]
         for start in range(0, len(missing), TIDAL_WRITE_BATCH_SIZE):
             self._session.user.favorites.add_track(missing[start : start + TIDAL_WRITE_BATCH_SIZE])
         return len(missing)
 
-    def favorite_track_ids(self) -> set[str]:
+    def saved_track_ids(self) -> set[str]:
         return {
             str(track.id)
             for track in _pages(

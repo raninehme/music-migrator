@@ -7,22 +7,22 @@ import requests
 from music_migrator.services.tidal.service import TidalDestination
 
 
-def test_playlist_sync_appends_when_existing_is_prefix():
+def test_appends_planned_playlist_tracks():
     playlist = Mock()
-    playlist.tracks.return_value = [SimpleNamespace(id="1")]
     destination = TidalDestination(Mock())
 
-    assert destination.sync_playlist(playlist, ["1", "2"]) is True
+    destination.append_playlist_tracks(playlist, ["2"], expected_before=["1"])
+
     playlist.add.assert_called_once_with(["2"])
     playlist.clear.assert_not_called()
 
 
-def test_playlist_sync_replaces_different_contents():
+def test_replaces_planned_playlist_contents():
     playlist = Mock()
-    playlist.tracks.return_value = [SimpleNamespace(id="old")]
     destination = TidalDestination(Mock())
 
-    destination.sync_playlist(playlist, ["new"])
+    destination.replace_playlist_tracks(playlist, ["new"], original_track_ids=["old"])
+
     playlist.clear.assert_called_once_with()
     playlist.add.assert_called_once_with(["new"])
 
@@ -37,26 +37,30 @@ def test_precondition_failure_refreshes_and_retries():
     playlist._reparse.assert_called_once_with()
 
 
-def test_loads_tidal_favorite_track_ids():
+def test_loads_tidal_saved_track_ids():
     session = Mock()
     session.user.favorites.tracks.return_value = [
         SimpleNamespace(id="one"),
         SimpleNamespace(id="two"),
     ]
 
-    result = TidalDestination(session).favorite_track_ids()
+    result = TidalDestination(session).saved_track_ids()
 
     assert result == {"one", "two"}
 
 
 def test_restores_tidal_playlist_after_interrupted_replacement():
     playlist = Mock()
-    playlist.tracks.return_value = [SimpleNamespace(id="old")]
+    playlist.tracks.return_value = []
     playlist.add.side_effect = [RuntimeError("write failed"), None]
     destination = TidalDestination(Mock())
 
     with pytest.raises(RuntimeError, match="write failed"):
-        destination.sync_playlist(playlist, ["new"])
+        destination.replace_playlist_tracks(
+            playlist,
+            ["new"],
+            original_track_ids=["old"],
+        )
 
     assert playlist.clear.call_count == 2
     assert playlist.add.call_args_list == [call(["new"]), call(["old"])]
@@ -64,14 +68,10 @@ def test_restores_tidal_playlist_after_interrupted_replacement():
 
 def test_confirms_append_that_succeeded_before_response_failed():
     playlist = Mock()
-    playlist.tracks.side_effect = [
-        [SimpleNamespace(id="one")],
-        [SimpleNamespace(id="one"), SimpleNamespace(id="two")],
-    ]
+    playlist.tracks.return_value = [SimpleNamespace(id="one"), SimpleNamespace(id="two")]
     playlist.add.side_effect = requests.Timeout("response lost")
     destination = TidalDestination(Mock())
 
-    changed = destination.sync_playlist(playlist, ["one", "two"])
+    destination.append_playlist_tracks(playlist, ["two"], expected_before=["one"])
 
-    assert changed is True
     playlist.add.assert_called_once_with(["two"])

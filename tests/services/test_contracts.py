@@ -6,9 +6,10 @@ DESTINATION_METHODS = (
     "create_playlist",
     "search_tracks",
     "playlist_track_ids",
-    "sync_playlist",
-    "favorite_track_ids",
-    "add_favorites",
+    "append_playlist_tracks",
+    "replace_playlist_tracks",
+    "saved_track_ids",
+    "add_saved_tracks",
 )
 
 

@@ -78,48 +78,42 @@ def test_searches_by_isrc_before_text(mocker):
     assert tracks[0].duration_seconds == 181
 
 
-def test_appends_when_existing_playlist_is_prefix(mocker):
+def test_appends_planned_playlist_tracks(mocker):
     client = mocker.Mock()
-    client.playlist_items.return_value = {
-        "items": [{"item": spotify_track("first")}],
-        "next": None,
-    }
     destination = SpotifyDestination(client)
 
-    changed = destination.sync_playlist({"id": "playlist-1"}, ["first", "second"])
-
-    assert changed is True
-    client.playlist_add_items.assert_called_once_with("playlist-1", ["second"])
-    client.playlist_items.assert_called_once_with(
-        "playlist-1",
-        limit=50,
-        offset=0,
-        additional_types=("track",),
+    destination.append_playlist_tracks(
+        {"id": "playlist-1"},
+        ["second"],
+        expected_before=["first"],
     )
+
+    client.playlist_add_items.assert_called_once_with("playlist-1", ["second"])
     client.playlist_replace_items.assert_not_called()
 
 
-def test_replaces_different_playlist_contents(mocker):
+def test_replaces_planned_playlist_contents(mocker):
     client = mocker.Mock()
-    client.playlist_items.return_value = {
-        "items": [{"item": spotify_track("old")}],
-        "next": None,
-    }
+    destination = SpotifyDestination(client)
 
-    SpotifyDestination(client).sync_playlist({"id": "playlist-1"}, ["new"])
+    destination.replace_playlist_tracks(
+        {"id": "playlist-1"},
+        ["new"],
+        original_track_ids=["old"],
+    )
 
     client.playlist_replace_items.assert_called_once_with("playlist-1", ["new"])
     client.playlist_add_items.assert_not_called()
 
 
-def test_loads_spotify_favorite_track_ids(mocker):
+def test_loads_spotify_saved_track_ids(mocker):
     client = mocker.Mock()
     client.current_user_saved_tracks.return_value = {
         "items": [{"item": spotify_track("one")}, {"item": spotify_track("two")}],
         "next": None,
     }
 
-    result = SpotifyDestination(client).favorite_track_ids()
+    result = SpotifyDestination(client).saved_track_ids()
 
     assert result == {"one", "two"}
 
@@ -128,7 +122,7 @@ def test_adds_only_missing_saved_tracks(mocker):
     client = mocker.Mock()
     client.current_user_saved_tracks_contains.return_value = [True, False, False]
 
-    added = SpotifyDestination(client).add_favorites(["one", "two", "three"])
+    added = SpotifyDestination(client).add_saved_tracks(["one", "two", "three"])
 
     assert added == 2
     client.current_user_saved_tracks_add.assert_called_once_with(["two", "three"])
@@ -141,7 +135,7 @@ def test_checks_saved_tracks_in_current_api_batches(mocker):
         [False],
     ]
 
-    added = SpotifyDestination(client).add_favorites([str(index) for index in range(41)])
+    added = SpotifyDestination(client).add_saved_tracks([str(index) for index in range(41)])
 
     assert added == 1
     assert client.current_user_saved_tracks_contains.call_count == 2
@@ -150,16 +144,20 @@ def test_checks_saved_tracks_in_current_api_batches(mocker):
 
 def test_restores_spotify_playlist_after_interrupted_replacement(mocker):
     client = mocker.Mock()
+    desired = [str(index) for index in range(101)]
     client.playlist_items.return_value = {
-        "items": [{"item": spotify_track("old")}],
+        "items": [{"item": spotify_track(track_id)} for track_id in desired[:100]],
         "next": None,
     }
     client.playlist_add_items.side_effect = RuntimeError("write failed")
     destination = SpotifyDestination(client)
-    desired = [str(index) for index in range(101)]
 
     with pytest.raises(RuntimeError, match="write failed"):
-        destination.sync_playlist({"id": "playlist-1"}, desired)
+        destination.replace_playlist_tracks(
+            {"id": "playlist-1"},
+            desired,
+            original_track_ids=["old"],
+        )
 
     assert client.playlist_replace_items.call_args_list == [
         mocker.call("playlist-1", desired[:100]),
@@ -169,20 +167,17 @@ def test_restores_spotify_playlist_after_interrupted_replacement(mocker):
 
 def test_confirms_append_that_succeeded_before_response_failed(mocker):
     client = mocker.Mock()
-    client.playlist_items.side_effect = [
-        {
-            "items": [{"item": spotify_track("one")}],
-            "next": None,
-        },
-        {
-            "items": [{"item": spotify_track("one")}, {"item": spotify_track("two")}],
-            "next": None,
-        },
-    ]
+    client.playlist_items.return_value = {
+        "items": [{"item": spotify_track("one")}, {"item": spotify_track("two")}],
+        "next": None,
+    }
     client.playlist_add_items.side_effect = requests.Timeout("response lost")
     destination = SpotifyDestination(client)
 
-    changed = destination.sync_playlist({"id": "playlist-1"}, ["one", "two"])
+    destination.append_playlist_tracks(
+        {"id": "playlist-1"},
+        ["two"],
+        expected_before=["one"],
+    )
 
-    assert changed is True
     client.playlist_add_items.assert_called_once_with("playlist-1", ["two"])
