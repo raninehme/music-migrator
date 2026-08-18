@@ -61,4 +61,4 @@ def test_executor_dispatches_only_missing_saved_tracks():
 
     apply_saved_tracks_plan(writer, plan)
 
-    writer.add_favorites.assert_called_once_with(["two"])
+    writer.add_saved_tracks.assert_called_once_with(["two"])
