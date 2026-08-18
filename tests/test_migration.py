@@ -205,6 +205,7 @@ def test_failed_saved_tracks_write_preserves_cached_matches(tmp_path):
     source.saved_tracks.return_value = [source_track]
     destination = Mock(saved_tracks_name="Favorites")
     destination.playlists_by_name.return_value = {}
+    destination.favorite_track_ids.return_value = set()
     destination.add_favorites.side_effect = RuntimeError("write failed")
 
     with MatchCache(tmp_path / "cache.sqlite3") as cache:
@@ -213,6 +214,31 @@ def test_failed_saved_tracks_write_preserves_cached_matches(tmp_path):
         with pytest.raises(RuntimeError, match="write failed"):
             Migrator(source, destination, cache, dry_run=False).migrate(None, True)
         assert cache.get("source-1", fingerprint) == "destination-1"
+
+
+def test_saved_tracks_apply_only_missing_destination_tracks(tmp_path):
+    tracks = [
+        Track("source-1", "One", ("Artist",), "Album", 180, "ISRC1"),
+        Track("source-2", "Two", ("Artist",), "Album", 180, "ISRC2"),
+    ]
+    source = Mock(saved_tracks_name="Liked Songs")
+    source.playlists.return_value = []
+    source.saved_tracks.return_value = tracks
+    destination = Mock(saved_tracks_name="Favorites")
+    destination.playlists_by_name.return_value = {}
+    destination.favorite_track_ids.return_value = {"destination-1"}
+    destination.search_tracks.side_effect = [
+        [Track("destination-1", "One", ("Artist",), "Album", 180, "ISRC1")],
+        [Track("destination-2", "Two", ("Artist",), "Album", 180, "ISRC2")],
+    ]
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        report = Migrator(source, destination, cache, dry_run=False, max_concurrency=1).migrate(
+            None, True
+        )
+
+    assert report.collections[0].changed is True
+    destination.add_favorites.assert_called_once_with(["destination-2"])
 
 
 def test_duplicate_source_playlist_names_stop_before_destination_loading(tmp_path):
