@@ -1,3 +1,5 @@
+"""Adapt Spotify APIs to provider-neutral source and destination contracts."""
+
 import logging
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -224,24 +226,34 @@ class SpotifyDestination:
                 ids.append(raw["id"])
         return ids
 
-    def sync_playlist(self, playlist: Any, track_ids: list[str]) -> bool:
+    def append_playlist_tracks(
+        self,
+        playlist: Any,
+        track_ids: list[str],
+        *,
+        expected_before: list[str],
+    ) -> None:
         playlist_id = self._playlist_id(playlist)
-        existing = self.playlist_track_ids(playlist)
-        if existing == track_ids:
-            return False
-        if existing == track_ids[: len(existing)]:
-            self._add_tracks(playlist_id, track_ids, start=len(existing))
-            return True
+        desired = [*expected_before, *track_ids]
+        self._add_tracks(playlist_id, desired, start=len(expected_before))
+
+    def replace_playlist_tracks(
+        self,
+        playlist: Any,
+        track_ids: list[str],
+        *,
+        original_track_ids: list[str],
+    ) -> None:
+        playlist_id = self._playlist_id(playlist)
         try:
             self._replace_tracks(playlist_id, track_ids)
         except Exception:
             logger.warning("Playlist update failed; restoring original Spotify tracks")
             try:
-                self._replace_tracks(playlist_id, existing)
+                self._replace_tracks(playlist_id, original_track_ids)
             except Exception:
                 logger.exception("Could not restore the original Spotify playlist")
             raise
-        return True
 
     def favorite_track_ids(self) -> set[str]:
         entries = _pages(
