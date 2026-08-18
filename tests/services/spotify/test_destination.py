@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 import requests
 
-from music_migrator.core.models import Track
+from music_migrator.domain.models import Track
 from music_migrator.services.spotify.auth import SPOTIFY_DESTINATION_SCOPES
 from music_migrator.services.spotify.service import SpotifyDestination
 
