@@ -6,9 +6,10 @@ from dataclasses import dataclass, field
 from threading import Lock
 
 from music_migrator.core.cache import MatchCache
+from music_migrator.core.collections import CollectionSnapshot
 from music_migrator.core.matching import best_match, track_fingerprint
 from music_migrator.core.models import Playlist, Track, TrackMatch
-from music_migrator.core.reconciliation import PlaylistMode, plan_playlist
+from music_migrator.core.reconciliation import PlaylistMode, plan_playlist, plan_saved_tracks
 from music_migrator.core.retry import retry_request
 from music_migrator.services.base import MusicDestination, MusicSource
 
@@ -121,7 +122,12 @@ class Migrator:
                 if target is not None
                 else []
             )
-            plan = plan_playlist(results.matched, existing, mode=self._mode)
+            current = CollectionSnapshot.playlist(
+                f"playlist:{playlist.source_id}",
+                playlist.name,
+                existing,
+            )
+            plan = plan_playlist(results.matched, current, mode=self._mode)
             changed = target is None or plan.changed
             if not self._dry_run and changed:
                 if target is None:
@@ -137,7 +143,7 @@ class Migrator:
                     None,
                     None,
                 )
-                self._destination.sync_playlist(target, list(plan.desired))
+                self._destination.sync_playlist(target, list(plan.desired.track_ids))
             report.collections.append(
                 CollectionReport(
                     playlist.name,
@@ -151,13 +157,24 @@ class Migrator:
         if include_saved:
             collection_name = self._source.saved_tracks_name
             results = self._match_tracks(self._source.saved_tracks(), collection_name)
-            if self._dry_run:
-                existing = retry_request(self._destination.favorite_track_ids)
-                changed = any(track_id not in existing for track_id in results.matched)
-            else:
+            existing = retry_request(self._destination.favorite_track_ids)
+            current = CollectionSnapshot.saved_tracks(
+                "saved-tracks",
+                self._destination.saved_tracks_name,
+                existing,
+            )
+            plan = plan_saved_tracks(results.matched, current)
+            changed = plan.changed
+            if not self._dry_run and changed:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
-                changed = self._destination.add_favorites(results.matched) > 0
+                existing_ids = set(plan.current.track_ids)
+                missing = [
+                    track_id
+                    for track_id in plan.desired.track_ids
+                    if track_id not in existing_ids
+                ]
+                self._destination.add_favorites(missing)
             report.collections.append(
                 CollectionReport(
                     collection_name,
