@@ -4,8 +4,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
-from music_migrator.core.models import Track, TrackMatch
-from music_migrator.matching import MatchCache, MatchEngine
+from music_migrator.domain.models import Track
+from music_migrator.matching import MatchCache, MatchEngine, TrackMatch
 from music_migrator.matching.normalization import track_fingerprint
 
 
