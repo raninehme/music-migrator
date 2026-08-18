@@ -3,7 +3,8 @@
 import re
 from difflib import SequenceMatcher
 
-from music_migrator.core.models import Track, TrackMatch
+from music_migrator.domain.models import Track
+from music_migrator.matching.models import TrackMatch
 from music_migrator.matching.normalization import normalize, normalize_title
 
 MATCH_VERSION = 3
