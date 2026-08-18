@@ -1,7 +1,9 @@
+"""Test reconciliation policy and planning without provider side effects."""
+
 import pytest
 
-from music_migrator.core.collections import CollectionSnapshot
-from music_migrator.core.reconciliation import plan_playlist, plan_saved_tracks
+from music_migrator.domain.collections import CollectionSnapshot
+from music_migrator.reconciliation import plan_playlist, plan_saved_tracks
 
 
 def playlist(track_ids: list[str]) -> CollectionSnapshot:
