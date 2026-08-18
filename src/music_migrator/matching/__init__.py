@@ -2,6 +2,7 @@
 
 from music_migrator.matching.cache import MatchCache
 from music_migrator.matching.engine import MatchEngine, MatchResults
+from music_migrator.matching.models import TrackMatch
 from music_migrator.matching.normalization import (
     normalize,
     normalize_title,
@@ -15,6 +16,7 @@ __all__ = [
     "MatchCache",
     "MatchEngine",
     "MatchResults",
+    "TrackMatch",
     "best_match",
     "normalize",
     "normalize_title",

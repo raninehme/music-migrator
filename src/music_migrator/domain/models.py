@@ -1,3 +1,5 @@
+"""Define provider-neutral music entities used across migration components."""
+
 from dataclasses import dataclass
 
 
@@ -16,11 +18,3 @@ class Playlist:
     source_id: str
     name: str
     description: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class TrackMatch:
-    source: Track
-    destination_id: str | None
-    confidence: float
-    reason: str

@@ -3,7 +3,7 @@
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any, Protocol
 
-from music_migrator.core.models import Playlist, Track
+from music_migrator.domain.models import Playlist, Track
 
 
 class MusicSource(Protocol):

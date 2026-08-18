@@ -1,15 +1,12 @@
-from music_migrator.core.matching import (
+from music_migrator.domain.models import Track
+from music_migrator.matching import best_match, normalize, score, track_fingerprint
+from music_migrator.matching.scoring import (
     ALBUM_WEIGHT,
     ARTIST_WEIGHT,
     DURATION_WEIGHT,
     MATCH_THRESHOLD,
     TITLE_WEIGHT,
-    best_match,
-    normalize,
-    score,
-    track_fingerprint,
 )
-from music_migrator.core.models import Track
 
 
 def track(identifier="1", title="Song", artists=("Artist",), duration=180, isrc=None):
