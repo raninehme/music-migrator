@@ -4,15 +4,13 @@ from collections.abc import Callable, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Literal
 
 from music_migrator.core.cache import MatchCache
 from music_migrator.core.matching import best_match, track_fingerprint
 from music_migrator.core.models import Playlist, Track, TrackMatch
+from music_migrator.core.reconciliation import PlaylistMode, plan_playlist
 from music_migrator.core.retry import retry_request
 from music_migrator.services.base import MusicDestination, MusicSource
-
-PlaylistMode = Literal["combine", "replace"]
 
 
 @dataclass(slots=True)
@@ -123,8 +121,8 @@ class Migrator:
                 if target is not None
                 else []
             )
-            desired = self._desired_playlist_tracks(results.matched, existing)
-            changed = target is None or existing != desired
+            plan = plan_playlist(results.matched, existing, mode=self._mode)
+            changed = target is None or plan.changed
             if not self._dry_run and changed:
                 if target is None:
                     self._progress(
@@ -139,7 +137,7 @@ class Migrator:
                     None,
                     None,
                 )
-                self._destination.sync_playlist(target, desired)
+                self._destination.sync_playlist(target, list(plan.desired))
             report.collections.append(
                 CollectionReport(
                     playlist.name,
@@ -183,12 +181,6 @@ class Migrator:
         if duplicates:
             names = ", ".join(sorted(duplicates))
             raise ValueError(f"Source contains duplicate playlist names: {names}")
-
-    def _desired_playlist_tracks(self, matched: list[str], existing: list[str]) -> list[str]:
-        if self._mode == "replace":
-            return matched
-        matched_ids = set(matched)
-        return [*matched, *(track_id for track_id in existing if track_id not in matched_ids)]
 
     def _match_tracks(self, tracks: Iterable[Track], collection_name: str) -> MatchResults:
         label = f"Matching {collection_name}"
