@@ -144,9 +144,13 @@ def test_checks_saved_tracks_in_current_api_batches(mocker):
 
 def test_restores_spotify_playlist_after_interrupted_replacement(mocker):
     client = mocker.Mock()
+    desired = [str(index) for index in range(101)]
+    client.playlist_items.return_value = {
+        "items": [{"item": spotify_track(track_id)} for track_id in desired[:100]],
+        "next": None,
+    }
     client.playlist_add_items.side_effect = RuntimeError("write failed")
     destination = SpotifyDestination(client)
-    desired = [str(index) for index in range(101)]
 
     with pytest.raises(RuntimeError, match="write failed"):
         destination.replace_playlist_tracks(
