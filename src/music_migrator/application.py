@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from music_migrator.config import MigrationConfig
 from music_migrator.core.cache import MatchCache
+from music_migrator.core.journal import MigrationJournal
 from music_migrator.core.migration import MigrationReport, Migrator, PlaylistMode
 from music_migrator.core.planning import MigrationRoute, plan_route
 from music_migrator.profiles import ProfilePaths
@@ -106,11 +107,18 @@ def _run_route(
 ) -> MigrationReport:
     source, destination = _authenticate_route(route, config, paths)
     route_paths = paths.for_route(route.key)
-    with MatchCache(route_paths.match_cache) as cache:
+    with MatchCache(route_paths.match_cache) as cache, MigrationJournal(
+        route_paths.match_cache
+    ) as journal:
         if refresh_matches:
             cache.clear()
         requests = config.requests_for(route.destination.name, route.destination.request_defaults)
-        return Migrator(
+        run_id: int | None = None
+        if not dry_run:
+            run_id, resumed = journal.begin_or_resume(route.key, mode)
+            if resumed:
+                progress(f"Resuming {route.key} migration", None, None)
+        report = Migrator(
             source,
             destination,
             cache,
@@ -119,8 +127,13 @@ def _run_route(
             max_concurrency=requests.max_concurrency,
             rate_limit=requests.rate_limit,
             progress=progress,
+            journal=journal if run_id is not None else None,
+            run_id=run_id,
         ).migrate(
             playlist_ids,
             include_saved,
             playlist_names=playlist_names,
         )
+        if run_id is not None:
+            journal.complete_run(run_id)
+        return report
