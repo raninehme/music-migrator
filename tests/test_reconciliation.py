@@ -41,9 +41,7 @@ def test_combine_preserves_unique_destination_tracks_after_source_order():
         "destination-last",
     )
     assert plan.operations == (
-        ReplacePlaylistTracks(
-            ("source-1", "source-2", "destination-only", "destination-last")
-        ),
+        ReplacePlaylistTracks(("source-1", "source-2", "destination-only", "destination-last")),
     )
 
 
