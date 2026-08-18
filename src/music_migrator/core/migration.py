@@ -1,3 +1,5 @@
+"""Orchestrate collection discovery, matching, reconciliation, and provider writes."""
+
 import time
 from collections import deque
 from collections.abc import Callable, Iterable
@@ -6,11 +8,11 @@ from dataclasses import dataclass, field
 from threading import Lock
 
 from music_migrator.core.cache import MatchCache
-from music_migrator.core.collections import CollectionSnapshot
 from music_migrator.core.matching import best_match, track_fingerprint
 from music_migrator.core.models import Playlist, Track, TrackMatch
-from music_migrator.core.reconciliation import PlaylistMode, plan_playlist, plan_saved_tracks
 from music_migrator.core.retry import retry_request
+from music_migrator.domain.collections import CollectionSnapshot
+from music_migrator.reconciliation import PlaylistMode, plan_playlist, plan_saved_tracks
 from music_migrator.services.base import MusicDestination, MusicSource
 
 
