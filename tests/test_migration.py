@@ -26,10 +26,11 @@ def test_dry_run_never_creates_or_changes_playlist(tmp_path):
     assert report.matched == 1
     assert report.collections[0].changed is True
     tidal.create_playlist.assert_not_called()
-    tidal.sync_playlist.assert_not_called()
+    tidal.append_playlist_tracks.assert_not_called()
+    tidal.replace_playlist_tracks.assert_not_called()
 
 
-def test_apply_creates_and_syncs_playlist(tmp_path):
+def test_apply_creates_and_appends_new_playlist(tmp_path):
     source_track = Track("s1", "Song", ("Artist",), "Album", 180, "ISRC1")
     candidate = Track("t1", "Song", ("Artist",), "Album", 180, "ISRC1")
     spotify = Mock()
@@ -45,7 +46,8 @@ def test_apply_creates_and_syncs_playlist(tmp_path):
         Migrator(spotify, tidal, cache, dry_run=False).migrate(None, False)
 
     tidal.create_playlist.assert_called_once_with("Mix", "Description")
-    tidal.sync_playlist.assert_called_once_with(target, ["t1"])
+    tidal.append_playlist_tracks.assert_called_once_with(target, ["t1"], expected_before=[])
+    tidal.replace_playlist_tracks.assert_not_called()
 
 
 def test_progress_uses_service_display_names(tmp_path):
@@ -79,10 +81,11 @@ def test_empty_source_playlist_is_skipped(tmp_path):
 
     assert report.collections == []
     destination.create_playlist.assert_not_called()
-    destination.sync_playlist.assert_not_called()
+    destination.append_playlist_tracks.assert_not_called()
+    destination.replace_playlist_tracks.assert_not_called()
 
 
-def test_combine_preserves_destination_tracks_after_source_order(tmp_path):
+def test_combine_replaces_when_destination_order_is_not_desired_prefix(tmp_path):
     source_track = Track("source-1", "Source", ("Artist",), "Album", 180, "ISRC1")
     candidate = Track("target-1", "Source", ("Artist",), "Album", 180, "ISRC1")
     source = Mock()
@@ -97,7 +100,12 @@ def test_combine_preserves_destination_tracks_after_source_order(tmp_path):
     with MatchCache(tmp_path / "cache.sqlite3") as cache:
         Migrator(source, destination, cache, dry_run=False, mode="combine").migrate(None, False)
 
-    destination.sync_playlist.assert_called_once_with(target, ["target-1", "target-only"])
+    destination.replace_playlist_tracks.assert_called_once_with(
+        target,
+        ["target-1", "target-only"],
+        original_track_ids=["target-only", "target-1"],
+    )
+    destination.append_playlist_tracks.assert_not_called()
 
 
 def test_replace_removes_destination_only_tracks(tmp_path):
@@ -115,7 +123,12 @@ def test_replace_removes_destination_only_tracks(tmp_path):
     with MatchCache(tmp_path / "cache.sqlite3") as cache:
         Migrator(source, destination, cache, dry_run=False).migrate(None, False)
 
-    destination.sync_playlist.assert_called_once_with(target, ["target-1"])
+    destination.replace_playlist_tracks.assert_called_once_with(
+        target,
+        ["target-1"],
+        original_track_ids=["target-only"],
+    )
+    destination.append_playlist_tracks.assert_not_called()
 
 
 def test_can_select_reverse_playlists_by_name(tmp_path):
@@ -188,7 +201,7 @@ def test_failed_playlist_write_preserves_cached_matches(tmp_path):
     destination = Mock()
     destination.playlists_by_name.return_value = {"Mix": SimpleNamespace()}
     destination.playlist_track_ids.return_value = []
-    destination.sync_playlist.side_effect = RuntimeError("write failed")
+    destination.append_playlist_tracks.side_effect = RuntimeError("write failed")
 
     with MatchCache(tmp_path / "cache.sqlite3") as cache:
         fingerprint = track_fingerprint(source_track)
@@ -257,7 +270,8 @@ def test_duplicate_source_playlist_names_stop_before_destination_loading(tmp_pat
 
     destination.playlists_by_name.assert_not_called()
     destination.create_playlist.assert_not_called()
-    destination.sync_playlist.assert_not_called()
+    destination.append_playlist_tracks.assert_not_called()
+    destination.replace_playlist_tracks.assert_not_called()
 
 
 def test_saved_tracks_are_consumed_incrementally_and_keep_order(tmp_path):
@@ -318,4 +332,5 @@ def test_late_source_iteration_failure_stops_before_destination_write(tmp_path):
         Migrator(source, destination, cache, dry_run=False).migrate(None, False)
 
     destination.create_playlist.assert_not_called()
-    destination.sync_playlist.assert_not_called()
+    destination.append_playlist_tracks.assert_not_called()
+    destination.replace_playlist_tracks.assert_not_called()
