@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from music_migrator.core.matching import strip_title_qualifiers
-from music_migrator.core.models import Track
+from music_migrator.domain.models import Track
+from music_migrator.matching import strip_title_qualifiers
 from music_migrator.services.tidal.service import TidalDestination
 
 
