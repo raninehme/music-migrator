@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import dataclass
 from typing import Literal
 
@@ -18,6 +19,18 @@ class ReconciliationPlan:
         if self.current == self.desired[: len(self.current)]:
             return len(self.current)
         return None
+
+    @property
+    def desired_fingerprint(self) -> str:
+        return fingerprint_track_ids(self.desired)
+
+
+def fingerprint_track_ids(track_ids: tuple[str, ...] | list[str]) -> str:
+    digest = hashlib.sha256()
+    for track_id in track_ids:
+        digest.update(track_id.encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def desired_playlist_tracks(
