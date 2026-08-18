@@ -143,7 +143,7 @@ Runtime logs are written to:
 .music-migrator/profiles/NAME/logs/music-migrator.log
 ```
 
-Confirmed matches are cached per direction. Matcher-version changes automatically invalidate older entries. Failed destination writes discard affected entries so the next run searches again. Use `--refresh-matches` only when a complete rebuild is necessary. Replace mode clears the requested route; combine mode clears both directions. The command asks for confirmation because every track must be searched again.
+Confirmed matches are cached per direction. Matcher-version changes automatically invalidate older entries. Destination write failures do not invalidate successful matches, so a retry can reuse matching work and reconcile the destination again. Use `--refresh-matches` only when a complete rebuild is necessary. Replace mode clears the requested route; combine mode clears both directions. The command asks for confirmation because every track must be searched again.
 
 ## Safety and limitations
 
@@ -169,15 +169,20 @@ Confirmed matches are cached per direction. Matcher-version changes automaticall
 
 Bug reports and focused contributions are welcome. See the [contribution guide](.github/CONTRIBUTING.md), [security policy](.github/SECURITY.md), and [code of conduct](.github/CODE_OF_CONDUCT.md).
 
-The codebase separates reusable migration behavior from service adapters, application orchestration, and CLI presentation:
+The codebase keeps provider-neutral state and behavior separate from provider APIs and application wiring:
 
 ```text
 src/music_migrator/
 ├── application.py
 ├── cli.py
-├── core/
+├── domain/
+├── matching/
+├── migration/
+├── reconciliation/
 └── services/
 ```
+
+`domain` defines provider-neutral music and collection state, `matching` resolves source tracks to destination catalog entries, `reconciliation` turns current and desired collection state into provider-neutral operations, `migration` coordinates those components for one route, and `services` contains provider adapters and registration.
 
 ## License
 
