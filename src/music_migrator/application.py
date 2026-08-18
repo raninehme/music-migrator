@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from music_migrator.config import MigrationConfig
 from music_migrator.core.cache import MatchCache
-from music_migrator.core.journal import MigrationJournal
+from music_migrator.core.journal import MigrationJournal, migration_scope_fingerprint
 from music_migrator.core.migration import MigrationReport, Migrator, PlaylistMode
 from music_migrator.core.planning import MigrationRoute, plan_route
 from music_migrator.profiles import ProfilePaths
@@ -107,15 +107,21 @@ def _run_route(
 ) -> MigrationReport:
     source, destination = _authenticate_route(route, config, paths)
     route_paths = paths.for_route(route.key)
-    with MatchCache(route_paths.match_cache) as cache, MigrationJournal(
-        route_paths.match_cache
-    ) as journal:
+    with (
+        MatchCache(route_paths.match_cache) as cache,
+        MigrationJournal(route_paths.match_cache) as journal,
+    ):
         if refresh_matches:
             cache.clear()
         requests = config.requests_for(route.destination.name, route.destination.request_defaults)
         run_id: int | None = None
         if not dry_run:
-            run_id, resumed = journal.begin_or_resume(route.key, mode)
+            scope_fingerprint = migration_scope_fingerprint(
+                playlist_ids,
+                playlist_names,
+                include_saved=include_saved,
+            )
+            run_id, resumed = journal.begin_or_resume(route.key, mode, scope_fingerprint)
             if resumed:
                 progress(f"Resuming {route.key} migration", None, None)
         report = Migrator(
