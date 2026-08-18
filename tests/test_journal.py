@@ -17,9 +17,7 @@ def test_incomplete_run_is_resumed(tmp_path):
         )
 
     with MigrationJournal(path) as journal:
-        resumed_run_id, resumed = journal.begin_or_resume(
-            "spotify-to-tidal", "replace", scope
-        )
+        resumed_run_id, resumed = journal.begin_or_resume("spotify-to-tidal", "replace", scope)
         assert resumed is True
         assert resumed_run_id == run_id
         assert journal.collection_status(run_id, "playlist:one") == "in_progress"
@@ -30,9 +28,7 @@ def test_completed_run_is_not_resumed(tmp_path):
     scope = migration_scope_fingerprint(None, None, include_saved=False)
 
     with MigrationJournal(path) as journal:
-        first_run_id, resumed = journal.begin_or_resume(
-            "spotify-to-tidal", "replace", scope
-        )
+        first_run_id, resumed = journal.begin_or_resume("spotify-to-tidal", "replace", scope)
         assert resumed is False
         journal.mark_collection(
             first_run_id,
@@ -43,9 +39,7 @@ def test_completed_run_is_not_resumed(tmp_path):
         )
         journal.complete_run(first_run_id)
 
-        second_run_id, resumed = journal.begin_or_resume(
-            "spotify-to-tidal", "replace", scope
-        )
+        second_run_id, resumed = journal.begin_or_resume("spotify-to-tidal", "replace", scope)
         assert resumed is False
         assert second_run_id != first_run_id
 
@@ -56,9 +50,7 @@ def test_routes_modes_and_scopes_resume_independently(tmp_path):
     selected_scope = migration_scope_fingerprint(["playlist-1"], None, include_saved=False)
 
     with MigrationJournal(path) as journal:
-        replace_run, _ = journal.begin_or_resume(
-            "spotify-to-tidal", "replace", all_scope
-        )
+        replace_run, _ = journal.begin_or_resume("spotify-to-tidal", "replace", all_scope)
         combine_run, combine_resumed = journal.begin_or_resume(
             "spotify-to-tidal", "combine", all_scope
         )
