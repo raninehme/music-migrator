@@ -187,14 +187,14 @@ class TidalDestination:
             )
         ]
 
-    def add_favorites(self, track_ids: list[str]) -> int:
-        existing = self.favorite_track_ids()
+    def add_saved_tracks(self, track_ids: list[str]) -> int:
+        existing = self.saved_track_ids()
         missing = [track_id for track_id in track_ids if track_id not in existing]
         for start in range(0, len(missing), TIDAL_WRITE_BATCH_SIZE):
             self._session.user.favorites.add_track(missing[start : start + TIDAL_WRITE_BATCH_SIZE])
         return len(missing)
 
-    def favorite_track_ids(self) -> set[str]:
+    def saved_track_ids(self) -> set[str]:
         return {
             str(track.id)
             for track in _pages(
