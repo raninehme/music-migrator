@@ -180,7 +180,7 @@ def test_saved_tracks_dry_run_reports_missing_favorites(tmp_path):
     assert report.collections[0].changed is True
 
 
-def test_failed_playlist_write_discards_cached_matches(tmp_path):
+def test_failed_playlist_write_preserves_cached_matches(tmp_path):
     source_track = Track("source-1", "Song", ("Artist",), "Album", 180, "ISRC")
     source = Mock()
     source.playlists.return_value = [Playlist("playlist-1", "Mix")]
@@ -191,10 +191,28 @@ def test_failed_playlist_write_discards_cached_matches(tmp_path):
     destination.sync_playlist.side_effect = RuntimeError("write failed")
 
     with MatchCache(tmp_path / "cache.sqlite3") as cache:
-        cache.put("source-1", "destination-1", track_fingerprint(source_track))
+        fingerprint = track_fingerprint(source_track)
+        cache.put("source-1", "destination-1", fingerprint)
         with pytest.raises(RuntimeError, match="write failed"):
             Migrator(source, destination, cache, dry_run=False).migrate(None, False)
-        assert cache.get("source-1", track_fingerprint(source_track)) is None
+        assert cache.get("source-1", fingerprint) == "destination-1"
+
+
+def test_failed_saved_tracks_write_preserves_cached_matches(tmp_path):
+    source_track = Track("source-1", "Song", ("Artist",), "Album", 180, "ISRC")
+    source = Mock(saved_tracks_name="Liked Songs")
+    source.playlists.return_value = []
+    source.saved_tracks.return_value = [source_track]
+    destination = Mock(saved_tracks_name="Favorites")
+    destination.playlists_by_name.return_value = {}
+    destination.add_favorites.side_effect = RuntimeError("write failed")
+
+    with MatchCache(tmp_path / "cache.sqlite3") as cache:
+        fingerprint = track_fingerprint(source_track)
+        cache.put("source-1", "destination-1", fingerprint)
+        with pytest.raises(RuntimeError, match="write failed"):
+            Migrator(source, destination, cache, dry_run=False).migrate(None, True)
+        assert cache.get("source-1", fingerprint) == "destination-1"
 
 
 def test_duplicate_source_playlist_names_stop_before_destination_loading(tmp_path):
