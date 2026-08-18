@@ -170,9 +170,7 @@ class Migrator:
                 self._progress(f"Syncing {label}", None, None)
                 existing_ids = set(plan.current.track_ids)
                 missing = [
-                    track_id
-                    for track_id in plan.desired.track_ids
-                    if track_id not in existing_ids
+                    track_id for track_id in plan.desired.track_ids if track_id not in existing_ids
                 ]
                 self._destination.add_favorites(missing)
             report.collections.append(
