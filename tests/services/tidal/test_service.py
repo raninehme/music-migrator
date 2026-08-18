@@ -51,6 +51,7 @@ def test_loads_tidal_favorite_track_ids():
 
 def test_restores_tidal_playlist_after_interrupted_replacement():
     playlist = Mock()
+    playlist.tracks.return_value = []
     playlist.add.side_effect = [RuntimeError("write failed"), None]
     destination = TidalDestination(Mock())
 
