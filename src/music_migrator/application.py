@@ -5,9 +5,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
 from music_migrator.config import MigrationConfig
-from music_migrator.core.migration import MigrationReport, Migrator
-from music_migrator.core.planning import MigrationRoute, plan_route
 from music_migrator.matching import MatchCache
+from music_migrator.migration import MigrationJob, MigrationReport, MigrationRoute, plan_route
 from music_migrator.profiles import ProfilePaths
 from music_migrator.reconciliation import PlaylistMode
 from music_migrator.services.base import MusicDestination, MusicSource
@@ -113,7 +112,7 @@ def _run_route(
         if refresh_matches:
             cache.clear()
         requests = config.requests_for(route.destination.name, route.destination.request_defaults)
-        return Migrator(
+        return MigrationJob(
             source,
             destination,
             cache,
@@ -122,7 +121,7 @@ def _run_route(
             max_concurrency=requests.max_concurrency,
             rate_limit=requests.rate_limit,
             progress=progress,
-        ).migrate(
+        ).run(
             playlist_ids,
             include_saved,
             playlist_names=playlist_names,
