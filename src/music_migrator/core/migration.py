@@ -165,7 +165,7 @@ class Migrator:
         if include_saved:
             collection_name = self._source.saved_tracks_name
             results = self._match_tracks(self._source.saved_tracks(), collection_name)
-            existing = retry_request(self._destination.favorite_track_ids)
+            existing = retry_request(self._destination.saved_track_ids)
             current = CollectionSnapshot.saved_tracks(
                 "saved-tracks",
                 self._destination.saved_tracks_name,
