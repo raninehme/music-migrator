@@ -10,9 +10,9 @@ import requests
 import tidalapi
 
 from music_migrator.config import RequestSettings
-from music_migrator.core.matching import strip_title_qualifiers
 from music_migrator.core.models import Playlist, Track
 from music_migrator.core.retry import retry_request
+from music_migrator.matching import strip_title_qualifiers
 from music_migrator.services.tidal.auth import create_tidal_session
 
 T = TypeVar("T")
