@@ -72,9 +72,7 @@ def test_saved_tracks_are_modeled_as_an_unordered_union():
 
 
 def test_saved_tracks_are_idempotent_when_every_match_exists():
-    current = CollectionSnapshot.saved_tracks(
-        "saved-tracks", "Favorites", {"one", "two"}
-    )
+    current = CollectionSnapshot.saved_tracks("saved-tracks", "Favorites", {"one", "two"})
     plan = plan_saved_tracks(["two", "one"], current)
 
     assert plan.changed is False
