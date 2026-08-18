@@ -139,11 +139,7 @@ class Migrator:
                     None,
                     None,
                 )
-                try:
-                    self._destination.sync_playlist(target, desired)
-                except Exception:
-                    self._cache.discard(results.source_ids)
-                    raise
+                self._destination.sync_playlist(target, desired)
             report.collections.append(
                 CollectionReport(
                     playlist.name,
@@ -163,11 +159,7 @@ class Migrator:
             else:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
-                try:
-                    changed = self._destination.add_favorites(results.matched) > 0
-                except Exception:
-                    self._cache.discard(results.source_ids)
-                    raise
+                changed = self._destination.add_favorites(results.matched) > 0
             report.collections.append(
                 CollectionReport(
                     collection_name,
