@@ -2,8 +2,7 @@ import pytest
 
 from music_migrator.application import _authenticate_route, _run_route, run_migration
 from music_migrator.config import MigrationConfig, RequestSettings
-from music_migrator.core.migration import CollectionReport, MigrationReport
-from music_migrator.core.planning import plan_route
+from music_migrator.migration import CollectionReport, MigrationReport, plan_route
 from music_migrator.profiles import ProfilePaths
 from music_migrator.services.spotify.config import SpotifyConfig
 
