@@ -100,3 +100,87 @@ def test_interrupted_playlist_append_resumes_from_remote_prefix(tmp_path):
         operation_key(original): "superseded",
         operation_key(resumed): "completed",
     }
+
+
+def test_completed_playlist_checkpoint_skips_rematching_when_state_is_unchanged(tmp_path):
+    playlists = [Playlist("playlist-a", "A"), Playlist("playlist-b", "B")]
+    tracks = {
+        "playlist-a": [Track("source-a", "A", ("Artist",), "Album", 180, "ISRCA")],
+        "playlist-b": [Track("source-b", "B", ("Artist",), "Album", 180, "ISRCB")],
+    }
+    source = Mock(display_name="Source")
+    source.playlists.return_value = playlists
+    source.playlist_tracks.side_effect = lambda playlist_id: tracks[playlist_id]
+
+    target_a = SimpleNamespace(name="A")
+    target_b = SimpleNamespace(name="B")
+    remote = {"A": [], "B": []}
+    destination = Mock(display_name="Destination")
+    destination.playlists_by_name.return_value = {"A": target_a, "B": target_b}
+    destination.playlist_track_ids.side_effect = lambda target: list(remote[target.name])
+    search_calls: list[str] = []
+
+    def search(track, **_):
+        search_calls.append(track.source_id)
+        return [
+            Track(
+                f"target-{track.source_id[-1]}",
+                track.title,
+                track.artists,
+                track.album,
+                track.duration_seconds,
+                track.isrc,
+            )
+        ]
+
+    destination.search_tracks.side_effect = search
+    failed_b = False
+
+    def append(target, track_ids, *, expected_before):
+        nonlocal failed_b
+        assert expected_before == remote[target.name]
+        if target.name == "B" and not failed_b:
+            failed_b = True
+            raise RuntimeError("B interrupted")
+        remote[target.name].extend(track_ids)
+
+    destination.append_playlist_tracks.side_effect = append
+    cache_path = tmp_path / "matches.sqlite3"
+    journal_path = tmp_path / "migration.sqlite3"
+
+    with (
+        MatchCache(cache_path) as cache,
+        SQLiteMigrationJournal(journal_path) as journal,
+        pytest.raises(RuntimeError, match="B interrupted"),
+    ):
+        Migrator(
+            source,
+            destination,
+            cache,
+            dry_run=False,
+            max_concurrency=1,
+            journal=journal,
+            scope_key="scope",
+        ).migrate(None, False)
+
+    assert remote["A"] == ["target-a"]
+    assert search_calls == ["source-a", "source-b"]
+
+    with MatchCache(cache_path) as cache:
+        cache.discard(["source-a"])
+
+    with MatchCache(cache_path) as cache, SQLiteMigrationJournal(journal_path) as journal:
+        report = Migrator(
+            source,
+            destination,
+            cache,
+            dry_run=False,
+            max_concurrency=1,
+            journal=journal,
+            scope_key="scope",
+        ).migrate(None, False)
+
+    assert remote == {"A": ["target-a"], "B": ["target-b"]}
+    assert search_calls == ["source-a", "source-b"]
+    assert report.collections[0].name == "A"
+    assert report.collections[0].changed is False
