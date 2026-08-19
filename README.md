@@ -9,6 +9,7 @@ Move or combine Spotify and TIDAL playlists, liked songs, and favorites while pr
 - Include saved tracks, or migrate playlists only.
 - Select one or more playlists by source playlist ID.
 - Preview every migration with `--dry-run` before applying changes.
+- Resume interrupted apply runs from current destination state.
 - Match tracks by ISRC first, then title, artist, album, and duration.
 - Cache confirmed matches independently for each migration direction.
 - Control search concurrency and request rate per profile.
@@ -145,6 +146,10 @@ Runtime logs are written to:
 
 Confirmed matches are cached per direction. Matcher-version changes automatically invalidate older entries. Destination write failures do not invalidate successful matches, so a retry can reuse matching work and reconcile the destination again. Use `--refresh-matches` only when a complete rebuild is necessary. Replace mode clears the requested route; combine mode clears both directions. The command asks for confirmation because every track must be searched again.
 
+Apply runs also checkpoint migration and reconciliation-operation progress per direction. If an apply run is interrupted, rerunning the same route, mode, playlist selection, and saved-track selection resumes that run automatically. The destination service is always read again first and reconciliation is rebuilt from its current state; stale local checkpoints never override remote state. An operation that is no longer required is marked superseded, while only the operation still required by the live destination is applied.
+
+Dry runs do not create or update resume state.
+
 ## Safety and limitations
 
 - Nothing is written unless `--apply` is supplied.
@@ -152,6 +157,7 @@ Confirmed matches are cached per direction. Matcher-version changes automaticall
 - `combine` never removes playlist tracks.
 - Saved tracks and favorites are always add-only.
 - Interrupted playlist replacements attempt to restore the original destination contents before returning an error.
+- Interrupted apply runs can resume from the destination state observed on the next run.
 - Playlist names identify corresponding playlists; duplicate writable names stop the run.
 - Local Spotify files and podcasts are skipped.
 - Regional catalog differences can leave tracks unmatched.
@@ -163,7 +169,7 @@ Confirmed matches are cached per direction. Matcher-version changes automaticall
 - **Wrong account opens:** Run with `--reset-auth` for the affected profile.
 - **Requests are throttled:** Lower `max_concurrency` and `rate_limit` in the profile configuration.
 - **Tracks are missing:** Review the route-specific `unmatched.csv`. Use `--refresh-matches` only when rebuilding every cached match is necessary because it can consume significant API quota.
-- **A playlist write fails:** The tool attempts restoration and exits with an error. Inspect the destination playlist and runtime log before retrying.
+- **A playlist write fails:** The tool attempts restoration and exits with an error. Inspect the destination playlist and runtime log before retrying; rerunning the same apply scope resumes from the current destination state.
 
 ## Contributing
 
@@ -178,11 +184,13 @@ src/music_migrator/
 ├── domain/
 ├── matching/
 ├── migration/
+├── persistence/
 ├── reconciliation/
-└── services/
+├── services/
+└── transport/
 ```
 
-`domain` defines provider-neutral music and collection state, `matching` resolves source tracks to destination catalog entries, `reconciliation` turns current and desired collection state into provider-neutral operations, `migration` coordinates those components for one route, and `services` contains provider adapters and registration.
+`domain` defines provider-neutral music and collection state, `matching` resolves source tracks to destination catalog entries, `reconciliation` turns current and desired collection state into provider-neutral operations, `migration` coordinates those components for one route, `persistence` checkpoints resumable progress, `services` contains provider adapters and registration, and `transport` contains shared request retry behavior.
 
 ## License
 
