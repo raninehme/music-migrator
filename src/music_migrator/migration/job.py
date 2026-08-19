@@ -26,7 +26,8 @@ def _source_fingerprint(
     ordered: bool,
 ) -> str:
     items = [
-        f"{source_id}\0{fingerprint}" for source_id, fingerprint in zip(source_ids, fingerprints)
+        f"{source_id}\0{fingerprint}"
+        for source_id, fingerprint in zip(source_ids, fingerprints, strict=True)
     ]
     if not ordered:
         items.sort()
