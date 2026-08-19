@@ -8,12 +8,12 @@ from dataclasses import dataclass, field
 from threading import Lock
 from typing import Protocol
 
-from music_migrator.core.retry import retry_request
 from music_migrator.domain.models import Track
 from music_migrator.matching.cache import MatchCache
 from music_migrator.matching.models import TrackMatch
 from music_migrator.matching.normalization import track_fingerprint
 from music_migrator.matching.scoring import best_match
+from music_migrator.transport.retry import retry_request
 
 ProgressCallback = Callable[[str, int | None, int | None], None]
 

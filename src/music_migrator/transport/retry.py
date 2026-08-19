@@ -1,3 +1,5 @@
+"""Retry transient provider transport failures with bounded backoff."""
+
 import logging
 import time
 from collections.abc import Callable

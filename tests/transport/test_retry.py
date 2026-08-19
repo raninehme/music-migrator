@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 import requests
 
-from music_migrator.core.retry import ApiQuotaExceededError, retry_request
+from music_migrator.transport.retry import ApiQuotaExceededError, retry_request
 
 
 def http_error(status: int, retry_after: str | None = None) -> requests.HTTPError:
