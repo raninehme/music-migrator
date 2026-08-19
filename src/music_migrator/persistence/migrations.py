@@ -1,6 +1,7 @@
 """Persist migration runs and reconciliation operation progress."""
 
 import hashlib
+import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,10 +19,30 @@ class MigrationRun:
     resumed: bool
 
 
+@dataclass(frozen=True, slots=True)
+class CollectionCheckpoint:
+    """Describe a completed collection state that may be validated on resume."""
+
+    source_fingerprint: str | None
+    destination_fingerprint: str | None
+    matched_tracks: int
+    unmatched_source_ids: tuple[str, ...]
+
+    @property
+    def reusable(self) -> bool:
+        return self.source_fingerprint is not None and self.destination_fingerprint is not None
+
+
 class MigrationJournal(Protocol):
     """Store resumable progress without overriding remote reconciliation state."""
 
     def start_run(self, scope_key: str) -> MigrationRun: ...
+
+    def collection_checkpoint(
+        self,
+        run_id: str,
+        collection_key: str,
+    ) -> CollectionCheckpoint | None: ...
 
     def begin_collection(self, run_id: str, collection_key: str) -> None: ...
 
@@ -39,7 +60,16 @@ class MigrationJournal(Protocol):
         operation: ReconciliationOperation,
     ) -> None: ...
 
-    def complete_collection(self, run_id: str, collection_key: str) -> None: ...
+    def complete_collection(
+        self,
+        run_id: str,
+        collection_key: str,
+        *,
+        source_fingerprint: str | None = None,
+        destination_fingerprint: str | None = None,
+        matched_tracks: int = 0,
+        unmatched_source_ids: tuple[str, ...] = (),
+    ) -> None: ...
 
     def complete_run(self, run_id: str) -> None: ...
 
@@ -57,6 +87,14 @@ class NullMigrationJournal:
     def start_run(self, scope_key: str) -> MigrationRun:
         del scope_key
         return MigrationRun(str(uuid4()), False)
+
+    def collection_checkpoint(
+        self,
+        run_id: str,
+        collection_key: str,
+    ) -> CollectionCheckpoint | None:
+        del run_id, collection_key
+        return None
 
     def begin_collection(self, run_id: str, collection_key: str) -> None:
         del run_id, collection_key
@@ -77,8 +115,24 @@ class NullMigrationJournal:
     ) -> None:
         del run_id, collection_key, operation
 
-    def complete_collection(self, run_id: str, collection_key: str) -> None:
-        del run_id, collection_key
+    def complete_collection(
+        self,
+        run_id: str,
+        collection_key: str,
+        *,
+        source_fingerprint: str | None = None,
+        destination_fingerprint: str | None = None,
+        matched_tracks: int = 0,
+        unmatched_source_ids: tuple[str, ...] = (),
+    ) -> None:
+        del (
+            run_id,
+            collection_key,
+            source_fingerprint,
+            destination_fingerprint,
+            matched_tracks,
+            unmatched_source_ids,
+        )
 
     def complete_run(self, run_id: str) -> None:
         del run_id
@@ -106,6 +160,10 @@ class SQLiteMigrationJournal:
                 run_id TEXT NOT NULL,
                 collection_key TEXT NOT NULL,
                 status TEXT NOT NULL CHECK(status IN ('running', 'completed')),
+                source_fingerprint TEXT,
+                destination_fingerprint TEXT,
+                matched_tracks INTEGER NOT NULL DEFAULT 0,
+                unmatched_source_ids TEXT NOT NULL DEFAULT '[]',
                 PRIMARY KEY (run_id, collection_key),
                 FOREIGN KEY (run_id) REFERENCES migration_runs(run_id)
             );
@@ -122,6 +180,23 @@ class SQLiteMigrationJournal:
             );
             """
         )
+        columns = {
+            row[1]
+            for row in self._connection.execute(
+                "PRAGMA table_info(migration_collections)"
+            ).fetchall()
+        }
+        additions = {
+            "source_fingerprint": "TEXT",
+            "destination_fingerprint": "TEXT",
+            "matched_tracks": "INTEGER NOT NULL DEFAULT 0",
+            "unmatched_source_ids": "TEXT NOT NULL DEFAULT '[]'",
+        }
+        for name, definition in additions.items():
+            if name not in columns:
+                self._connection.execute(
+                    f"ALTER TABLE migration_collections ADD COLUMN {name} {definition}"
+                )
         self._connection.commit()
 
     def start_run(self, scope_key: str) -> MigrationRun:
@@ -141,6 +216,26 @@ class SQLiteMigrationJournal:
         )
         self._connection.commit()
         return MigrationRun(run_id, False)
+
+    def collection_checkpoint(
+        self,
+        run_id: str,
+        collection_key: str,
+    ) -> CollectionCheckpoint | None:
+        row = self._connection.execute(
+            "SELECT source_fingerprint, destination_fingerprint, matched_tracks, "
+            "unmatched_source_ids FROM migration_collections "
+            "WHERE run_id = ? AND collection_key = ? AND status = 'completed'",
+            (run_id, collection_key),
+        ).fetchone()
+        if row is None:
+            return None
+        return CollectionCheckpoint(
+            source_fingerprint=row[0],
+            destination_fingerprint=row[1],
+            matched_tracks=row[2],
+            unmatched_source_ids=tuple(json.loads(row[3])),
+        )
 
     def begin_collection(self, run_id: str, collection_key: str) -> None:
         self._connection.execute(
@@ -191,11 +286,28 @@ class SQLiteMigrationJournal:
         )
         self._connection.commit()
 
-    def complete_collection(self, run_id: str, collection_key: str) -> None:
+    def complete_collection(
+        self,
+        run_id: str,
+        collection_key: str,
+        *,
+        source_fingerprint: str | None = None,
+        destination_fingerprint: str | None = None,
+        matched_tracks: int = 0,
+        unmatched_source_ids: tuple[str, ...] = (),
+    ) -> None:
         self._connection.execute(
-            "UPDATE migration_collections SET status = 'completed' "
-            "WHERE run_id = ? AND collection_key = ?",
-            (run_id, collection_key),
+            "UPDATE migration_collections SET status = 'completed', "
+            "source_fingerprint = ?, destination_fingerprint = ?, matched_tracks = ?, "
+            "unmatched_source_ids = ? WHERE run_id = ? AND collection_key = ?",
+            (
+                source_fingerprint,
+                destination_fingerprint,
+                matched_tracks,
+                json.dumps(unmatched_source_ids, separators=(",", ":")),
+                run_id,
+                collection_key,
+            ),
         )
         self._connection.commit()
 
