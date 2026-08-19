@@ -1,5 +1,6 @@
 """Persist migration runs and reconciliation operation progress."""
 
+import hashlib
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,9 +45,10 @@ class MigrationJournal(Protocol):
 
 
 def operation_key(operation: ReconciliationOperation) -> str:
-    """Return a deterministic identifier for one planned reconciliation operation."""
-    track_ids = "\0".join(operation.track_ids)
-    return f"{type(operation).__name__}:{track_ids}"
+    """Return a bounded deterministic identifier for one reconciliation operation."""
+    payload = "\0".join(operation.track_ids).encode()
+    digest = hashlib.sha256(payload).hexdigest()
+    return f"{type(operation).__name__}:{digest}"
 
 
 class NullMigrationJournal:
@@ -155,29 +157,24 @@ class SQLiteMigrationJournal:
         collection_key: str,
         operations: tuple[ReconciliationOperation, ...],
     ) -> None:
-        current_keys = {operation_key(operation) for operation in operations}
         self._connection.execute(
             "UPDATE migration_operations SET status = 'superseded' "
             "WHERE run_id = ? AND collection_key = ? AND status = 'pending'",
             (run_id, collection_key),
         )
         for operation in operations:
-            key = operation_key(operation)
             self._connection.execute(
                 "INSERT INTO migration_operations("
                 "run_id, collection_key, operation_key, operation_type, status"
                 ") VALUES (?, ?, ?, ?, 'pending') "
                 "ON CONFLICT(run_id, collection_key, operation_key) DO UPDATE SET "
                 "operation_type = excluded.operation_type, status = 'pending'",
-                (run_id, collection_key, key, type(operation).__name__),
-            )
-        if current_keys:
-            placeholders = ", ".join("?" for _ in current_keys)
-            self._connection.execute(
-                "UPDATE migration_operations SET status = 'superseded' "
-                f"WHERE run_id = ? AND collection_key = ? AND status = 'pending' "
-                f"AND operation_key NOT IN ({placeholders})",
-                (run_id, collection_key, *sorted(current_keys)),
+                (
+                    run_id,
+                    collection_key,
+                    operation_key(operation),
+                    type(operation).__name__,
+                ),
             )
         self._connection.commit()
 
