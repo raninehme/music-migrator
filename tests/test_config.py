@@ -4,7 +4,7 @@ from music_migrator.config import MigrationConfig, RequestSettings, render_profi
 from music_migrator.services.spotify.config import SpotifyConfig
 
 
-def test_loads_new_service_configuration():
+def test_loads_service_configuration():
     config = MigrationConfig.from_mapping(
         {
             "services": {
@@ -23,15 +23,11 @@ def test_loads_new_service_configuration():
     assert config.include_saved_tracks is True
 
 
-def test_loads_existing_spotify_configuration():
-    config = MigrationConfig.from_mapping(
-        {"spotify": {"client_id": "client", "client_secret": "secret"}}
-    )
-
-    assert config.service("spotify") == {
-        "client_id": "client",
-        "client_secret": "secret",
-    }
+def test_rejects_unknown_top_level_configuration():
+    with pytest.raises(ValueError, match="Unknown top-level configuration"):
+        MigrationConfig.from_mapping(
+            {"spotify": {"client_id": "client", "client_secret": "secret"}}
+        )
 
 
 def test_allows_profiles_without_spotify():
@@ -55,10 +51,45 @@ def test_spotify_rejects_missing_credentials(missing_key):
     [
         ({"include_saved_tracks": "false"}, "include_saved_tracks"),
         ({"include_saved_tracks": 0}, "include_saved_tracks"),
-        ({"max_concurrency": True, "rate_limit": 1}, "max_concurrency"),
-        ({"max_concurrency": "10", "rate_limit": 1}, "max_concurrency"),
-        ({"max_concurrency": 1, "rate_limit": 1.5}, "rate_limit"),
-        ({"max_concurrency": 1}, "configured together"),
+        (
+            {
+                "services": {
+                    "tidal": {
+                        "requests": {
+                            "max_concurrency": True,
+                            "rate_limit": 1,
+                        }
+                    }
+                }
+            },
+            "max_concurrency",
+        ),
+        (
+            {
+                "services": {
+                    "tidal": {
+                        "requests": {
+                            "max_concurrency": "10",
+                            "rate_limit": 1,
+                        }
+                    }
+                }
+            },
+            "max_concurrency",
+        ),
+        (
+            {
+                "services": {
+                    "tidal": {
+                        "requests": {
+                            "max_concurrency": 1,
+                            "rate_limit": 1.5,
+                        }
+                    }
+                }
+            },
+            "rate_limit",
+        ),
         (
             {"services": {"tidal": {"requests": {"max_concurrency": 2}}}},
             "rate_limit",
@@ -91,14 +122,12 @@ def test_service_request_override_takes_precedence():
                         "rate_limit": 5,
                     }
                 }
-            },
-            "max_concurrency": 9,
-            "rate_limit": 9,
+            }
         }
     )
 
     assert config.requests_for("tidal", RequestSettings(8, 8)) == RequestSettings(4, 5)
-    assert config.requests_for("spotify", RequestSettings(3, 3)) == RequestSettings(9, 9)
+    assert config.requests_for("spotify", RequestSettings(3, 3)) == RequestSettings(3, 3)
 
 
 def test_service_defaults_apply_without_overrides():

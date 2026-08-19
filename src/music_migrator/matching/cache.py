@@ -59,16 +59,6 @@ class MatchCache:
             )
             self._connection.commit()
 
-    def discard(self, source_ids: list[str]) -> None:
-        if not source_ids:
-            return
-        with self._lock:
-            self._connection.executemany(
-                "DELETE FROM matches WHERE source_id = ?",
-                ((source_id,) for source_id in source_ids),
-            )
-            self._connection.commit()
-
     def clear(self) -> None:
         with self._lock:
             self._connection.execute("DELETE FROM matches")

@@ -65,16 +65,6 @@ def test_reset_auth_removes_only_session_files(tmp_path, monkeypatch):
     assert route_paths.migration_state.exists()
 
 
-def test_existing_legacy_session_is_reused(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    paths = ProfilePaths.for_name("rani")
-    paths.prepare()
-    legacy = paths.root / "spotify-session.json"
-    legacy.write_text("existing")
-
-    assert paths.session_for("spotify") == legacy
-
-
 def test_session_paths_support_registered_service_names():
     paths = ProfilePaths.for_name("rani")
 

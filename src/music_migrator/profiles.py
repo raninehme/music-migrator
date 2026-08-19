@@ -38,16 +38,6 @@ class ProfilePaths:
             reports_dir=root / "reports",
         )
 
-    @property
-    def spotify_session(self) -> Path:
-        """Return the Spotify session path for backward compatibility."""
-        return self.session_for("spotify")
-
-    @property
-    def tidal_session(self) -> Path:
-        """Return the TIDAL session path for backward compatibility."""
-        return self.session_for("tidal")
-
     def prepare(self) -> None:
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -66,18 +56,12 @@ class ProfilePaths:
     def session_for(self, service_name: str) -> Path:
         if not SERVICE_PATTERN.fullmatch(service_name):
             raise ValueError(f"invalid session service: {service_name}")
-        legacy = self.root / f"{service_name}-session.json"
-        return legacy if legacy.exists() else self.sessions_dir / f"{service_name}.json"
+        return self.sessions_dir / f"{service_name}.json"
 
     def reset_auth(self, service_names: Iterable[str]) -> int:
-        candidates: set[Path] = set()
-        for service_name in service_names:
-            if not SERVICE_PATTERN.fullmatch(service_name):
-                raise ValueError(f"invalid session service: {service_name}")
-            candidates.add(self.root / f"{service_name}-session.json")
-            candidates.add(self.sessions_dir / f"{service_name}.json")
         removed = 0
-        for path in candidates:
+        for service_name in service_names:
+            path = self.session_for(service_name)
             if path.exists():
                 path.unlink()
                 removed += 1

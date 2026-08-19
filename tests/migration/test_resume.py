@@ -166,8 +166,8 @@ def test_completed_playlist_checkpoint_skips_rematching_when_state_is_unchanged(
     assert remote["A"] == ["target-a"]
     assert search_calls == ["source-a", "source-b"]
 
-    with MatchCache(cache_path) as cache:
-        cache.discard(["source-a"])
+    with sqlite3.connect(cache_path) as connection:
+        connection.execute("DELETE FROM matches WHERE source_id = ?", ("source-a",))
 
     with MatchCache(cache_path) as cache, SQLiteMigrationJournal(journal_path) as journal:
         report = Migrator(
