@@ -1,10 +1,12 @@
 """Apply provider-neutral reconciliation operations through destination primitives."""
 
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from music_migrator.reconciliation.operations import (
     AddSavedTracks,
     AppendPlaylistTracks,
+    ReconciliationOperation,
     ReplacePlaylistTracks,
 )
 from music_migrator.reconciliation.planner import ReconciliationPlan
@@ -36,6 +38,8 @@ def apply_playlist_plan(
     writer: ReconciliationWriter,
     playlist: Any,
     plan: ReconciliationPlan,
+    *,
+    after_operation: Callable[[ReconciliationOperation], None] | None = None,
 ) -> None:
     """Apply the playlist operations already selected by the planner."""
     for operation in plan.operations:
@@ -53,11 +57,20 @@ def apply_playlist_plan(
             )
         else:
             raise TypeError(f"unsupported playlist operation: {type(operation).__name__}")
+        if after_operation is not None:
+            after_operation(operation)
 
 
-def apply_saved_tracks_plan(writer: ReconciliationWriter, plan: ReconciliationPlan) -> None:
+def apply_saved_tracks_plan(
+    writer: ReconciliationWriter,
+    plan: ReconciliationPlan,
+    *,
+    after_operation: Callable[[ReconciliationOperation], None] | None = None,
+) -> None:
     """Apply saved-track operations already selected by the planner."""
     for operation in plan.operations:
         if not isinstance(operation, AddSavedTracks):
             raise TypeError(f"unsupported saved-track operation: {type(operation).__name__}")
         writer.add_saved_tracks(list(operation.track_ids))
+        if after_operation is not None:
+            after_operation(operation)
