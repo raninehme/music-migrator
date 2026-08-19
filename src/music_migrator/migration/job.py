@@ -1,10 +1,11 @@
 """Orchestrate collection discovery, matching, reconciliation, and provider writes."""
 
-from collections.abc import Callable
+import hashlib
+from collections.abc import Callable, Iterable
 
 from music_migrator.domain.collections import CollectionSnapshot
-from music_migrator.domain.models import Playlist
-from music_migrator.matching import MatchCache, MatchEngine
+from music_migrator.domain.models import Playlist, Track
+from music_migrator.matching import MatchCache, MatchEngine, MatchResults, track_fingerprint
 from music_migrator.migration.reports import CollectionReport, MigrationReport
 from music_migrator.persistence import MigrationJournal, NullMigrationJournal
 from music_migrator.reconciliation import (
@@ -16,6 +17,47 @@ from music_migrator.reconciliation import (
 )
 from music_migrator.services.base import MusicDestination, MusicSource
 from music_migrator.transport.retry import retry_request
+
+
+def _source_fingerprint(
+    source_ids: Iterable[str],
+    fingerprints: Iterable[str],
+    *,
+    ordered: bool,
+) -> str:
+    items = [f"{source_id}\0{fingerprint}" for source_id, fingerprint in zip(source_ids, fingerprints)]
+    if not ordered:
+        items.sort()
+    return hashlib.sha256("\x01".join(items).encode()).hexdigest()
+
+
+def _track_source_fingerprint(tracks: list[Track], *, ordered: bool) -> str:
+    return _source_fingerprint(
+        (track.source_id for track in tracks),
+        (track_fingerprint(track) for track in tracks),
+        ordered=ordered,
+    )
+
+
+def _result_source_fingerprint(results: MatchResults, *, ordered: bool) -> str:
+    return _source_fingerprint(
+        results.source_ids,
+        results.source_fingerprints,
+        ordered=ordered,
+    )
+
+
+def _destination_fingerprint(
+    track_ids: Iterable[str],
+    *,
+    present: bool = True,
+    ordered: bool,
+) -> str:
+    items = list(track_ids)
+    if not ordered:
+        items.sort()
+    payload = ["present" if present else "missing", *items]
+    return hashlib.sha256("\0".join(payload).encode()).hexdigest()
 
 
 class Migrator:
@@ -79,17 +121,68 @@ class Migrator:
         report = MigrationReport()
         for playlist in source_playlists:
             collection_key = f"playlist:{playlist.source_id}"
+            checkpoint = self._journal.collection_checkpoint(run.run_id, collection_key)
+            target = None
+            existing: list[str] | None = None
+            source_tracks: Iterable[Track] = self._source.playlist_tracks(playlist.source_id)
+
+            if run.resumed and checkpoint is not None and checkpoint.reusable:
+                validated_tracks = list(source_tracks)
+                source_tracks = validated_tracks
+                source_state = _track_source_fingerprint(validated_tracks, ordered=True)
+                target = destinations.get(playlist.name)
+                existing = (
+                    retry_request(lambda target=target: self._destination.playlist_track_ids(target))
+                    if target is not None
+                    else []
+                )
+                destination_state = _destination_fingerprint(
+                    existing,
+                    present=target is not None,
+                    ordered=True,
+                )
+                if (
+                    source_state == checkpoint.source_fingerprint
+                    and destination_state == checkpoint.destination_fingerprint
+                ):
+                    unmatched_ids = set(checkpoint.unmatched_source_ids)
+                    report.collections.append(
+                        CollectionReport(
+                            playlist.name,
+                            len(validated_tracks),
+                            checkpoint.matched_tracks,
+                            [
+                                track
+                                for track in validated_tracks
+                                if track.source_id in unmatched_ids
+                            ],
+                            False,
+                        )
+                    )
+                    continue
+
             self._journal.begin_collection(run.run_id, collection_key)
-            results = self._matcher.match_tracks(
-                self._source.playlist_tracks(playlist.source_id), playlist.name
-            )
+            results = self._matcher.match_tracks(source_tracks, playlist.name)
+            source_state = _result_source_fingerprint(results, ordered=True)
+            unmatched_ids = tuple(track.source_id for track in results.unmatched)
             if results.count == 0:
                 self._journal.plan_operations(run.run_id, collection_key, ())
-                self._journal.complete_collection(run.run_id, collection_key)
+                self._journal.complete_collection(
+                    run.run_id,
+                    collection_key,
+                    source_fingerprint=source_state,
+                    matched_tracks=0,
+                )
                 continue
             if self._mode == "replace" and not results.matched:
                 self._journal.plan_operations(run.run_id, collection_key, ())
-                self._journal.complete_collection(run.run_id, collection_key)
+                self._journal.complete_collection(
+                    run.run_id,
+                    collection_key,
+                    source_fingerprint=source_state,
+                    matched_tracks=0,
+                    unmatched_source_ids=unmatched_ids,
+                )
                 report.collections.append(
                     CollectionReport(
                         playlist.name,
@@ -101,12 +194,14 @@ class Migrator:
                 )
                 continue
 
-            target = destinations.get(playlist.name)
-            existing = (
-                retry_request(lambda target=target: self._destination.playlist_track_ids(target))
-                if target is not None
-                else []
-            )
+            if target is None:
+                target = destinations.get(playlist.name)
+            if existing is None:
+                existing = (
+                    retry_request(lambda target=target: self._destination.playlist_track_ids(target))
+                    if target is not None
+                    else []
+                )
             current = CollectionSnapshot.playlist(
                 collection_key,
                 playlist.name,
@@ -137,7 +232,17 @@ class Migrator:
                         self._journal.complete_operation(run.run_id, key, operation)
                     ),
                 )
-            self._journal.complete_collection(run.run_id, collection_key)
+            self._journal.complete_collection(
+                run.run_id,
+                collection_key,
+                source_fingerprint=source_state,
+                destination_fingerprint=_destination_fingerprint(
+                    plan.desired.track_ids,
+                    ordered=True,
+                ),
+                matched_tracks=len(results.matched),
+                unmatched_source_ids=unmatched_ids,
+            )
             report.collections.append(
                 CollectionReport(
                     playlist.name,
@@ -150,14 +255,49 @@ class Migrator:
 
         if include_saved:
             collection_key = "saved-tracks"
-            self._journal.begin_collection(run.run_id, collection_key)
             collection_name = self._source.saved_tracks_name
-            results = self._matcher.match_tracks(self._source.saved_tracks(), collection_name)
-            existing = retry_request(self._destination.saved_track_ids)
+            checkpoint = self._journal.collection_checkpoint(run.run_id, collection_key)
+            source_tracks = self._source.saved_tracks()
+            existing_saved: set[str] | None = None
+
+            if run.resumed and checkpoint is not None and checkpoint.reusable:
+                validated_tracks = list(source_tracks)
+                source_tracks = validated_tracks
+                source_state = _track_source_fingerprint(validated_tracks, ordered=False)
+                existing_saved = retry_request(self._destination.saved_track_ids)
+                destination_state = _destination_fingerprint(existing_saved, ordered=False)
+                if (
+                    source_state == checkpoint.source_fingerprint
+                    and destination_state == checkpoint.destination_fingerprint
+                ):
+                    unmatched_ids = set(checkpoint.unmatched_source_ids)
+                    report.collections.append(
+                        CollectionReport(
+                            collection_name,
+                            len(validated_tracks),
+                            checkpoint.matched_tracks,
+                            [
+                                track
+                                for track in validated_tracks
+                                if track.source_id in unmatched_ids
+                            ],
+                            False,
+                            saved=True,
+                        )
+                    )
+                    self._journal.complete_run(run.run_id)
+                    return report
+
+            self._journal.begin_collection(run.run_id, collection_key)
+            results = self._matcher.match_tracks(source_tracks, collection_name)
+            source_state = _result_source_fingerprint(results, ordered=False)
+            unmatched_ids = tuple(track.source_id for track in results.unmatched)
+            if existing_saved is None:
+                existing_saved = retry_request(self._destination.saved_track_ids)
             current = CollectionSnapshot.saved_tracks(
                 collection_key,
                 self._destination.saved_tracks_name,
-                existing,
+                existing_saved,
             )
             plan = plan_saved_tracks(results.matched, current)
             self._journal.plan_operations(run.run_id, collection_key, plan.operations)
@@ -172,7 +312,17 @@ class Migrator:
                         run.run_id, collection_key, operation
                     ),
                 )
-            self._journal.complete_collection(run.run_id, collection_key)
+            self._journal.complete_collection(
+                run.run_id,
+                collection_key,
+                source_fingerprint=source_state,
+                destination_fingerprint=_destination_fingerprint(
+                    plan.desired.track_ids,
+                    ordered=False,
+                ),
+                matched_tracks=len(results.matched),
+                unmatched_source_ids=unmatched_ids,
+            )
             report.collections.append(
                 CollectionReport(
                     collection_name,
