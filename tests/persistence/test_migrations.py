@@ -30,6 +30,30 @@ def test_completed_scope_starts_a_new_run(tmp_path):
     assert second.resumed is False
 
 
+def test_completed_collection_checkpoint_round_trips(tmp_path):
+    path = tmp_path / "migration.sqlite3"
+
+    with SQLiteMigrationJournal(path) as journal:
+        run = journal.start_run("scope")
+        journal.begin_collection(run.run_id, "playlist:p1")
+        journal.complete_collection(
+            run.run_id,
+            "playlist:p1",
+            source_fingerprint="source-state",
+            destination_fingerprint="destination-state",
+            matched_tracks=2,
+            unmatched_source_ids=("source-3",),
+        )
+        checkpoint = journal.collection_checkpoint(run.run_id, "playlist:p1")
+
+    assert checkpoint is not None
+    assert checkpoint.reusable is True
+    assert checkpoint.source_fingerprint == "source-state"
+    assert checkpoint.destination_fingerprint == "destination-state"
+    assert checkpoint.matched_tracks == 2
+    assert checkpoint.unmatched_source_ids == ("source-3",)
+
+
 def test_replanning_supersedes_stale_pending_operation(tmp_path):
     path = tmp_path / "migration.sqlite3"
     original = AppendPlaylistTracks(("one", "two"))
