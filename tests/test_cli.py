@@ -91,9 +91,10 @@ def test_migration_handler_delegates_execution_and_presentation(tmp_path, monkey
     paths = ProfilePaths.for_name("rani")
     paths.prepare()
     paths.config.write_text(
-        """spotify:
-  client_id: client
-  client_secret: secret
+        """services:
+  spotify:
+    client_id: client
+    client_secret: secret
 """
     )
     args = argparse.Namespace(
@@ -133,9 +134,10 @@ def test_refresh_warns_about_both_combine_routes(tmp_path, monkeypatch, mocker, 
     paths = ProfilePaths.for_name("rani")
     paths.prepare()
     paths.config.write_text(
-        """spotify:
-  client_id: client
-  client_secret: secret
+        """services:
+  spotify:
+    client_id: client
+    client_secret: secret
 """
     )
     run_migration = mocker.patch("music_migrator.cli.run_migration", return_value=[])
