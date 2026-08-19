@@ -8,6 +8,8 @@ from music_migrator.domain.models import Playlist, Track
 from music_migrator.matching import MatchCache
 from music_migrator.migration import Migrator
 from music_migrator.persistence import SQLiteMigrationJournal
+from music_migrator.persistence.migrations import operation_key
+from music_migrator.reconciliation.operations import AppendPlaylistTracks
 
 
 def test_interrupted_playlist_append_resumes_from_remote_prefix(tmp_path):
@@ -86,15 +88,15 @@ def test_interrupted_playlist_append_resumes_from_remote_prefix(tmp_path):
     assert report.collections[0].changed is True
     assert "Resuming interrupted migration" in progress
 
+    original = AppendPlaylistTracks(("target-1", "target-2"))
+    resumed = AppendPlaylistTracks(("target-2",))
     connection = sqlite3.connect(journal_path)
     runs = connection.execute("SELECT status FROM migration_runs").fetchall()
-    operations = connection.execute(
-        "SELECT operation_key, status FROM migration_operations ORDER BY operation_key"
-    ).fetchall()
+    operations = dict(connection.execute("SELECT operation_key, status FROM migration_operations"))
     connection.close()
 
     assert runs == [("completed",)]
-    assert operations == [
-        ("AppendPlaylistTracks:target-1\\0target-2", "superseded"),
-        ("AppendPlaylistTracks:target-2", "completed"),
-    ]
+    assert operations == {
+        operation_key(original): "superseded",
+        operation_key(resumed): "completed",
+    }
