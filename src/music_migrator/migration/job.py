@@ -73,6 +73,17 @@ class Migrator:
             )
             if results.count == 0:
                 continue
+            if self._mode == "replace" and not results.matched:
+                report.collections.append(
+                    CollectionReport(
+                        playlist.name,
+                        results.count,
+                        0,
+                        results.unmatched,
+                        False,
+                    )
+                )
+                continue
             target = destinations.get(playlist.name)
             existing = (
                 retry_request(lambda target=target: self._destination.playlist_track_ids(target))
