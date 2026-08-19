@@ -36,6 +36,7 @@ class MatchResults:
     matched: list[str] = field(default_factory=list)
     unmatched: list[Track] = field(default_factory=list)
     source_ids: list[str] = field(default_factory=list)
+    source_fingerprints: list[str] = field(default_factory=list)
 
     @property
     def count(self) -> int:
@@ -107,6 +108,7 @@ class MatchEngine:
                 while next_result in completed_results:
                     result = completed_results.pop(next_result)
                     results.source_ids.append(result.source.source_id)
+                    results.source_fingerprints.append(track_fingerprint(result.source))
                     if result.destination_id:
                         results.matched.append(result.destination_id)
                     else:
