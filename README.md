@@ -48,6 +48,28 @@ music-migrator --setup YOUR_PROFILE
 
 Enter the Spotify client ID and secret when prompted. The first migration starts the Spotify and TIDAL login flows.
 
+Profile authentication sessions are stored under:
+
+```text
+.music-migrator/profiles/NAME/sessions/
+├── spotify.json
+└── tidal.json
+```
+
+### Upgrading from 1.x
+
+Version 2.0 uses one canonical profile layout and configuration format. Before running an existing 1.x profile, move any root-level session files into the `sessions` directory:
+
+```bash
+mkdir -p .music-migrator/profiles/NAME/sessions
+mv .music-migrator/profiles/NAME/spotify-session.json .music-migrator/profiles/NAME/sessions/spotify.json
+mv .music-migrator/profiles/NAME/tidal-session.json .music-migrator/profiles/NAME/sessions/tidal.json
+```
+
+Only move files that exist. Existing route-specific match caches and reports can remain in place.
+
+Existing configuration must use the `services:` layout shown below. Top-level `spotify`, `max_concurrency`, and `rate_limit` settings from 1.x are no longer accepted; move request overrides under the relevant service's `requests:` section.
+
 ## Run a migration
 
 Use one command shape for every migration:
@@ -90,11 +112,13 @@ Run `music-migrator --help` for the installed command reference.
 
 The destination version of each non-empty source playlist is replaced with the matched source tracks. Destination-only tracks are removed.
 
-Empty source playlists are intentionally skipped. Existing destination playlists are left unchanged and new empty playlists are not created. This prevents an accidentally emptied source playlist from deleting destination contents; empty playlists can be managed manually.
+Empty source playlists are intentionally skipped. Existing destination playlists are left unchanged and new empty playlists are not created. A non-empty source playlist for which no tracks can be matched is also left untouched and never creates an empty destination playlist. Partial matches still proceed with the tracks that were matched.
 
 ### Combine
 
 Both directions run in sequence. Matched tracks from each service are retained and added to the other service without removing playlist tracks. `--from` determines the preferred playlist order and identifies which service owns IDs passed with `--playlist`.
+
+A non-empty playlist with zero matched tracks is a no-op in combine mode as well; an existing destination playlist is left unchanged and a missing one is not created.
 
 Liked Songs and TIDAL favorites are add-only in both modes.
 
@@ -124,7 +148,7 @@ services:
 include_saved_tracks: true
 ```
 
-Each destination adapter provides safe request defaults. Most users should leave the commented settings unchanged. Advanced users can override both `max_concurrency` and `rate_limit` under a service's `requests` section. Existing profiles with the top-level `spotify`, `max_concurrency`, and `rate_limit` keys remain supported.
+Each destination adapter provides safe request defaults. Most users should leave the commented settings unchanged. Advanced users can override both `max_concurrency` and `rate_limit` under a service's `requests` section.
 
 Boolean values must be YAML booleans such as `true` or `false`, not quoted strings. Concurrency and rate-limit values must be positive integers.
 
@@ -154,6 +178,7 @@ Dry runs do not create or update resume state.
 
 - Nothing is written unless `--apply` is supplied.
 - Empty source playlists are skipped in both modes.
+- Non-empty playlists with zero matched tracks are also skipped in both modes.
 - `combine` never removes playlist tracks.
 - Saved tracks and favorites are always add-only.
 - Interrupted playlist replacements attempt to restore the original destination contents before returning an error.
@@ -167,7 +192,7 @@ Dry runs do not create or update resume state.
 
 - **Login does not finish:** Confirm the redirect URI is exact and port `8888` is available.
 - **Wrong account opens:** Run with `--reset-auth` for the affected profile.
-- **Requests are throttled:** Lower `max_concurrency` and `rate_limit` in the profile configuration.
+- **Requests are throttled:** Lower `max_concurrency` and `rate_limit` under the destination service's `requests` configuration.
 - **Tracks are missing:** Review the route-specific `unmatched.csv`. Use `--refresh-matches` only when rebuilding every cached match is necessary because it can consume significant API quota.
 - **A playlist write fails:** The tool attempts restoration and exits with an error. Inspect the destination playlist and runtime log before retrying; rerunning the same apply scope resumes from the current destination state.
 
@@ -181,6 +206,7 @@ The codebase keeps provider-neutral state and behavior separate from provider AP
 src/music_migrator/
 ├── application.py
 ├── cli.py
+├── cli_output.py
 ├── domain/
 ├── matching/
 ├── migration/
@@ -190,7 +216,7 @@ src/music_migrator/
 └── transport/
 ```
 
-`domain` defines provider-neutral music and collection state, `matching` resolves source tracks to destination catalog entries, `reconciliation` turns current and desired collection state into provider-neutral operations, `migration` coordinates those components for one route, `persistence` checkpoints resumable progress, `services` contains provider adapters and registration, and `transport` contains shared request retry behavior.
+`domain` defines provider-neutral music and collection state, `matching` resolves source tracks to destination catalog entries, `reconciliation` turns current and desired collection state into provider-neutral operations, `migration` coordinates those components for one route, `persistence` checkpoints resumable progress, `services` contains provider adapters and registration, and `transport` contains shared request retry behavior. `cli.py` handles command parsing and dispatch while `cli_output.py` owns progress and report presentation.
 
 ## License
 
