@@ -102,6 +102,7 @@ def _migration_scope(
     playlist_ids: list[str] | None,
     playlist_names: set[str] | None,
     include_saved: bool,
+    refresh_matches: bool,
 ) -> str:
     return json.dumps(
         {
@@ -109,6 +110,7 @@ def _migration_scope(
             "mode": mode,
             "playlist_ids": sorted(playlist_ids) if playlist_ids else None,
             "playlist_names": sorted(playlist_names) if playlist_names is not None else None,
+            "refresh_matches": refresh_matches,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -135,6 +137,7 @@ def _run_route(
         playlist_ids=playlist_ids,
         playlist_names=playlist_names,
         include_saved=include_saved,
+        refresh_matches=refresh_matches,
     )
     with ExitStack() as stack:
         cache = stack.enter_context(MatchCache(route_paths.match_cache))
