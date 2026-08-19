@@ -25,7 +25,9 @@ def _source_fingerprint(
     *,
     ordered: bool,
 ) -> str:
-    items = [f"{source_id}\0{fingerprint}" for source_id, fingerprint in zip(source_ids, fingerprints)]
+    items = [
+        f"{source_id}\0{fingerprint}" for source_id, fingerprint in zip(source_ids, fingerprints)
+    ]
     if not ordered:
         items.sort()
     return hashlib.sha256("\x01".join(items).encode()).hexdigest()
@@ -132,7 +134,9 @@ class Migrator:
                 source_state = _track_source_fingerprint(validated_tracks, ordered=True)
                 target = destinations.get(playlist.name)
                 existing = (
-                    retry_request(lambda target=target: self._destination.playlist_track_ids(target))
+                    retry_request(
+                        lambda target=target: self._destination.playlist_track_ids(target)
+                    )
                     if target is not None
                     else []
                 )
@@ -198,7 +202,9 @@ class Migrator:
                 target = destinations.get(playlist.name)
             if existing is None:
                 existing = (
-                    retry_request(lambda target=target: self._destination.playlist_track_ids(target))
+                    retry_request(
+                        lambda target=target: self._destination.playlist_track_ids(target)
+                    )
                     if target is not None
                     else []
                 )
