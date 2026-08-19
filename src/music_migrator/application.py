@@ -1,12 +1,15 @@
 """Wire configured providers and migration components into executable routes."""
 
+import json
 import logging
 from collections.abc import Callable, Iterator
+from contextlib import ExitStack
 from dataclasses import dataclass
 
 from music_migrator.config import MigrationConfig
 from music_migrator.matching import MatchCache
 from music_migrator.migration import MigrationReport, MigrationRoute, Migrator, plan_route
+from music_migrator.persistence import NullMigrationJournal, SQLiteMigrationJournal
 from music_migrator.profiles import ProfilePaths
 from music_migrator.reconciliation import PlaylistMode
 from music_migrator.services.base import MusicDestination, MusicSource
@@ -93,6 +96,27 @@ def _authenticate_route(
     return source, destination
 
 
+def _migration_scope(
+    *,
+    mode: PlaylistMode,
+    playlist_ids: list[str] | None,
+    playlist_names: set[str] | None,
+    include_saved: bool,
+    refresh_matches: bool,
+) -> str:
+    return json.dumps(
+        {
+            "include_saved": include_saved,
+            "mode": mode,
+            "playlist_ids": sorted(playlist_ids) if playlist_ids else None,
+            "playlist_names": sorted(playlist_names) if playlist_names is not None else None,
+            "refresh_matches": refresh_matches,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
 def _run_route(
     route: MigrationRoute,
     config: MigrationConfig,
@@ -108,7 +132,20 @@ def _run_route(
 ) -> MigrationReport:
     source, destination = _authenticate_route(route, config, paths)
     route_paths = paths.for_route(route.key)
-    with MatchCache(route_paths.match_cache) as cache:
+    scope_key = _migration_scope(
+        mode=mode,
+        playlist_ids=playlist_ids,
+        playlist_names=playlist_names,
+        include_saved=include_saved,
+        refresh_matches=refresh_matches,
+    )
+    with ExitStack() as stack:
+        cache = stack.enter_context(MatchCache(route_paths.match_cache))
+        journal = (
+            NullMigrationJournal()
+            if dry_run
+            else stack.enter_context(SQLiteMigrationJournal(route_paths.migration_state))
+        )
         if refresh_matches:
             cache.clear()
         requests = config.requests_for(route.destination.name, route.destination.request_defaults)
@@ -121,6 +158,8 @@ def _run_route(
             max_concurrency=requests.max_concurrency,
             rate_limit=requests.rate_limit,
             progress=progress,
+            journal=journal,
+            scope_key=scope_key,
         ).migrate(
             playlist_ids,
             include_saved,

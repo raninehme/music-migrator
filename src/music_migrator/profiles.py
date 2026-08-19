@@ -11,6 +11,7 @@ ROUTE_PATTERN = re.compile(r"^[a-z0-9-]+-to-[a-z0-9-]+$")
 @dataclass(frozen=True, slots=True)
 class MigrationPaths:
     match_cache: Path
+    migration_state: Path
     unmatched_report: Path
 
 
@@ -58,6 +59,7 @@ class ProfilePaths:
             raise ValueError(f"invalid migration route key: {route_key}")
         return MigrationPaths(
             match_cache=self.cache_dir / f"{route_key}.sqlite3",
+            migration_state=self.cache_dir / f"{route_key}-migration.sqlite3",
             unmatched_report=self.reports_dir / route_key / "unmatched.csv",
         )
 

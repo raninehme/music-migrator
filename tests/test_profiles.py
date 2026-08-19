@@ -22,8 +22,10 @@ def test_route_data_is_isolated_by_direction():
     reverse = paths.for_route("tidal-to-spotify")
 
     assert forward.match_cache != reverse.match_cache
+    assert forward.migration_state != reverse.migration_state
     assert forward.unmatched_report != reverse.unmatched_report
     assert forward.match_cache.as_posix().endswith("cache/spotify-to-tidal.sqlite3")
+    assert forward.migration_state.as_posix().endswith("cache/spotify-to-tidal-migration.sqlite3")
     assert reverse.unmatched_report.as_posix().endswith("reports/tidal-to-spotify/unmatched.csv")
 
 
@@ -54,11 +56,13 @@ def test_reset_auth_removes_only_session_files(tmp_path, monkeypatch):
     spotify_session.write_text("spotify")
     tidal_session.write_text("tidal")
     route_paths.match_cache.write_text("cache")
+    route_paths.migration_state.write_text("resume")
 
     assert paths.reset_auth(["spotify", "tidal"]) == 2
     assert not spotify_session.exists()
     assert not tidal_session.exists()
     assert route_paths.match_cache.exists()
+    assert route_paths.migration_state.exists()
 
 
 def test_existing_legacy_session_is_reused(tmp_path, monkeypatch):
