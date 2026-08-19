@@ -6,6 +6,7 @@ from music_migrator.domain.collections import CollectionSnapshot
 from music_migrator.domain.models import Playlist
 from music_migrator.matching import MatchCache, MatchEngine
 from music_migrator.migration.reports import CollectionReport, MigrationReport
+from music_migrator.persistence import MigrationJournal, NullMigrationJournal
 from music_migrator.reconciliation import (
     PlaylistMode,
     apply_playlist_plan,
@@ -31,6 +32,8 @@ class Migrator:
         max_concurrency: int = 10,
         rate_limit: int = 10,
         progress: Callable[[str, int | None, int | None], None] | None = None,
+        journal: MigrationJournal | None = None,
+        scope_key: str = "default",
     ):
         self._source = source
         self._destination = destination
@@ -46,6 +49,8 @@ class Migrator:
             rate_limit=rate_limit,
             progress=self._progress,
         )
+        self._journal = NullMigrationJournal() if dry_run or journal is None else journal
+        self._scope_key = scope_key
 
     def migrate(
         self,
@@ -66,14 +71,25 @@ class Migrator:
         self._reject_duplicate_playlist_names(source_playlists)
         self._progress(f"Loading {self._destination.display_name} playlists", None, None)
         destinations = retry_request(self._destination.playlists_by_name)
+
+        run = self._journal.start_run(self._scope_key)
+        if run.resumed:
+            self._progress("Resuming interrupted migration", None, None)
+
         report = MigrationReport()
         for playlist in source_playlists:
+            collection_key = f"playlist:{playlist.source_id}"
+            self._journal.begin_collection(run.run_id, collection_key)
             results = self._matcher.match_tracks(
                 self._source.playlist_tracks(playlist.source_id), playlist.name
             )
             if results.count == 0:
+                self._journal.plan_operations(run.run_id, collection_key, ())
+                self._journal.complete_collection(run.run_id, collection_key)
                 continue
             if self._mode == "replace" and not results.matched:
+                self._journal.plan_operations(run.run_id, collection_key, ())
+                self._journal.complete_collection(run.run_id, collection_key)
                 report.collections.append(
                     CollectionReport(
                         playlist.name,
@@ -84,6 +100,7 @@ class Migrator:
                     )
                 )
                 continue
+
             target = destinations.get(playlist.name)
             existing = (
                 retry_request(lambda target=target: self._destination.playlist_track_ids(target))
@@ -91,11 +108,12 @@ class Migrator:
                 else []
             )
             current = CollectionSnapshot.playlist(
-                f"playlist:{playlist.source_id}",
+                collection_key,
                 playlist.name,
                 existing,
             )
             plan = plan_playlist(results.matched, current, mode=self._mode)
+            self._journal.plan_operations(run.run_id, collection_key, plan.operations)
             changed = target is None or plan.changed
             if not self._dry_run and changed:
                 if target is None:
@@ -111,7 +129,15 @@ class Migrator:
                     None,
                     None,
                 )
-                apply_playlist_plan(self._destination, target, plan)
+                apply_playlist_plan(
+                    self._destination,
+                    target,
+                    plan,
+                    after_operation=lambda operation, key=collection_key: (
+                        self._journal.complete_operation(run.run_id, key, operation)
+                    ),
+                )
+            self._journal.complete_collection(run.run_id, collection_key)
             report.collections.append(
                 CollectionReport(
                     playlist.name,
@@ -123,20 +149,30 @@ class Migrator:
             )
 
         if include_saved:
+            collection_key = "saved-tracks"
+            self._journal.begin_collection(run.run_id, collection_key)
             collection_name = self._source.saved_tracks_name
             results = self._matcher.match_tracks(self._source.saved_tracks(), collection_name)
             existing = retry_request(self._destination.saved_track_ids)
             current = CollectionSnapshot.saved_tracks(
-                "saved-tracks",
+                collection_key,
                 self._destination.saved_tracks_name,
                 existing,
             )
             plan = plan_saved_tracks(results.matched, current)
+            self._journal.plan_operations(run.run_id, collection_key, plan.operations)
             changed = plan.changed
             if not self._dry_run and changed:
                 label = f"{self._destination.display_name} {self._destination.saved_tracks_name}"
                 self._progress(f"Syncing {label}", None, None)
-                apply_saved_tracks_plan(self._destination, plan)
+                apply_saved_tracks_plan(
+                    self._destination,
+                    plan,
+                    after_operation=lambda operation: self._journal.complete_operation(
+                        run.run_id, collection_key, operation
+                    ),
+                )
+            self._journal.complete_collection(run.run_id, collection_key)
             report.collections.append(
                 CollectionReport(
                     collection_name,
@@ -147,6 +183,8 @@ class Migrator:
                     saved=True,
                 )
             )
+
+        self._journal.complete_run(run.run_id)
         return report
 
     @staticmethod
