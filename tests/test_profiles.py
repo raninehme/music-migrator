@@ -25,9 +25,7 @@ def test_route_data_is_isolated_by_direction():
     assert forward.migration_state != reverse.migration_state
     assert forward.unmatched_report != reverse.unmatched_report
     assert forward.match_cache.as_posix().endswith("cache/spotify-to-tidal.sqlite3")
-    assert forward.migration_state.as_posix().endswith(
-        "cache/spotify-to-tidal-migration.sqlite3"
-    )
+    assert forward.migration_state.as_posix().endswith("cache/spotify-to-tidal-migration.sqlite3")
     assert reverse.unmatched_report.as_posix().endswith("reports/tidal-to-spotify/unmatched.csv")
 
 
