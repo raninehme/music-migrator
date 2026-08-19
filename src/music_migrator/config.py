@@ -33,8 +33,6 @@ class MigrationConfig:
     services: dict[str, dict[str, Any]] = field(default_factory=dict)
     include_saved_tracks: bool = True
     service_requests: dict[str, RequestSettings] = field(default_factory=dict)
-    max_concurrency: int | None = None
-    rate_limit: int | None = None
 
     @classmethod
     def load(cls, path: Path) -> "MigrationConfig":
@@ -46,17 +44,18 @@ class MigrationConfig:
 
     @classmethod
     def from_mapping(cls, raw: dict[str, Any]) -> "MigrationConfig":
+        unknown = set(raw) - {"services", "include_saved_tracks"}
+        if unknown:
+            names = ", ".join(sorted(unknown))
+            raise ValueError(f"Unknown top-level configuration setting(s): {names}")
+
         services_raw = raw.get("services", {})
         if not isinstance(services_raw, dict):
             raise ValueError("services must be a mapping")
 
-        raw_services = dict(services_raw)
-        if "spotify" not in raw_services and "spotify" in raw:
-            raw_services["spotify"] = raw["spotify"]
-
         services: dict[str, dict[str, Any]] = {}
         service_requests: dict[str, RequestSettings] = {}
-        for service_name, service_raw in raw_services.items():
+        for service_name, service_raw in services_raw.items():
             if service_raw is None:
                 service_raw = {}
             if not isinstance(service_raw, dict):
@@ -72,31 +71,17 @@ class MigrationConfig:
                 rate_limit=_positive_integer(requests_raw, "rate_limit"),
             )
 
-        max_concurrency = (
-            _positive_integer(raw, "max_concurrency") if "max_concurrency" in raw else None
-        )
-        rate_limit = _positive_integer(raw, "rate_limit") if "rate_limit" in raw else None
-        if (max_concurrency is None) != (rate_limit is None):
-            raise ValueError("max_concurrency and rate_limit must be configured together")
-
         return cls(
             services=services,
             include_saved_tracks=_boolean(raw, "include_saved_tracks", True),
             service_requests=service_requests,
-            max_concurrency=max_concurrency,
-            rate_limit=rate_limit,
         )
 
     def service(self, service_name: str) -> dict[str, Any] | None:
         return self.services.get(service_name)
 
     def requests_for(self, service_name: str, defaults: RequestSettings) -> RequestSettings:
-        override = self.service_requests.get(service_name)
-        if override is not None:
-            return override
-        if self.max_concurrency is not None and self.rate_limit is not None:
-            return RequestSettings(self.max_concurrency, self.rate_limit)
-        return defaults
+        return self.service_requests.get(service_name, defaults)
 
 
 def render_profile_config(service_sections: Iterable[str]) -> str:
