@@ -6,8 +6,7 @@ Open an issue before starting a large behavioral change or new integration. Keep
 
 ## Branch workflow
 
-The default `main` branch contains the latest stable release. Feature, fix, test, and
-documentation pull requests must target `release`, not `main`.
+The default `main` branch contains the latest stable release. Feature, fix, test, and documentation pull requests must target `release`, not `main`.
 
 Create a branch from the latest `release` branch:
 
@@ -18,21 +17,11 @@ git pull --ff-only
 git switch -c fix/short-description
 ```
 
-Open the pull request with `release` as its base branch. Merged branches from this repository
-are deleted automatically, while the protected `release` branch remains available for the next
-contribution.
+Open the pull request with `release` as its base branch. Merged branches from this repository are deleted automatically, while the protected `release` branch remains available for the next contribution.
 
-The `release` branch collects and validates the next release. Only the final release pull request
-targets `main`. Before opening that pull request, the maintainer updates the package version in
-`pyproject.toml` on `release`. The release-source check requires that version to be newer than the
-version on `main` and requires the pull request to come from this repository's `release` branch.
-After the release pull request is merged, the push to `main` runs the release workflow. That
-workflow validates and builds the package, creates the matching `v<version>` tag, and publishes
-the GitHub Release with the built wheel and source archive.
+The `release` branch collects and validates the next release. Only the final release pull request targets `main`. Before opening that pull request, the maintainer updates the package version in `pyproject.toml` on `release`. The release-source check requires that version to be newer than the version on `main` and requires the pull request to come from this repository's `release` branch. After the release pull request is merged, the push to `main` runs the release workflow. That workflow validates and builds the package, creates the matching `v<version>` tag, and publishes the GitHub Release with the built wheel and source archive.
 
-After a successful release, the sync-release workflow opens or reuses a `main` to `release` pull
-request and queues it for a merge-commit auto-merge. This keeps the long-lived branches in the
-same commit history. A main-to-release sync must never be squash-merged or rebased.
+After a successful release, the sync-release workflow opens or reuses a `main` to `release` pull request and queues it for a merge-commit auto-merge. This keeps the long-lived branches in the same commit history. A main-to-release sync must never be squash-merged or rebased.
 
 ## Development setup
 
@@ -53,12 +42,19 @@ python -m build
 
 ## Project boundaries
 
-- Put service-independent models, matching, retries, caching, and migration behavior in `core/`.
+- Put provider-neutral music and collection state in `domain/`.
+- Put matching, normalization, scoring, and match-cache behavior in `matching/`.
+- Put single-route migration orchestration in `migration/`.
+- Put desired-state and operation planning in `reconciliation/`.
+- Put resumable migration state in `persistence/`.
 - Put authentication and API-specific workarounds in the relevant `services/` adapter.
-- Put multi-route execution in `application.py`.
-- Keep argument parsing, console presentation, and command error handling in `cli.py`.
-- Extend the service registry instead of adding service-name conditionals to the core migration flow.
+- Put shared request/retry behavior in `transport/`.
+- Put multi-route execution and provider wiring in `application.py`.
+- Keep argument parsing and command dispatch in `cli.py`; keep progress and report presentation in `cli_output.py`.
+- Extend the service registry instead of adding service-name conditionals to provider-neutral migration code.
 
-Preserve backward compatibility unless the pull request explicitly explains a breaking change. Avoid unrelated refactors and new dependencies.
+Avoid compatibility shims during deliberate breaking refactors. If a public CLI, configuration, or on-disk contract must change, document it clearly and release it under an appropriate major version. Persisted-data schema migrations are appropriate when they safely upgrade existing state in place.
+
+Avoid unrelated refactors and new dependencies.
 
 Do not include credentials, OAuth tokens, session files, caches, logs, playlist exports, or other personal music data.
