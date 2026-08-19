@@ -17,11 +17,14 @@ git pull --ff-only
 git switch -c fix/short-description
 ```
 
-Open the pull request with `release` as its base branch. Merged branches from this repository are deleted automatically, while the protected `release` branch remains available for the next contribution.
+- Open feature and fix pull requests against `release`.
+- `release` collects and validates changes for the next version.
+- Before the final `release` → `main` pull request, update the version in `pyproject.toml`.
+- The release-source check requires the pull request into `main` to come from `release` and have a newer version than `main`.
+- Merging the release pull request triggers the release workflow, which tests, builds, tags, and creates the GitHub Release.
+- After a successful release, `main` is merged back into `release` with a merge commit. Do not squash or rebase that sync.
 
-The `release` branch collects and validates the next release. Only the final release pull request targets `main`. Before opening that pull request, the maintainer updates the package version in `pyproject.toml` on `release`. The release-source check requires that version to be newer than the version on `main` and requires the pull request to come from this repository's `release` branch. After the release pull request is merged, the push to `main` runs the release workflow. That workflow validates and builds the package, creates the matching `v<version>` tag, and publishes the GitHub Release with the built wheel and source archive.
-
-After a successful release, the sync-release workflow opens or reuses a `main` to `release` pull request and queues it for a merge-commit auto-merge. This keeps the long-lived branches in the same commit history. A main-to-release sync must never be squash-merged or rebased.
+Merged feature branches from this repository are deleted automatically. The protected `release` branch remains available for the next contribution.
 
 ## Development setup
 
@@ -50,10 +53,16 @@ python -m build
 - Put authentication and API-specific workarounds in the relevant `services/` adapter.
 - Put shared request/retry behavior in `transport/`.
 - Put multi-route execution and provider wiring in `application.py`.
-- Keep argument parsing and command dispatch in `cli.py`; keep progress and report presentation in `cli_output.py`.
+- Keep argument parsing and command dispatch in `cli.py`.
+- Keep progress, report presentation, and unmatched CSV output in `cli_output.py`.
 - Extend the service registry instead of adding service-name conditionals to provider-neutral migration code.
 
-Avoid compatibility shims during deliberate breaking refactors. If a public CLI, configuration, or on-disk contract must change, document it clearly and release it under an appropriate major version. Persisted-data schema migrations are appropriate when they safely upgrade existing state in place.
+For deliberate breaking changes:
+
+- Remove obsolete compatibility shims instead of carrying multiple formats indefinitely.
+- Document changes to public CLI, configuration, or on-disk contracts.
+- Use an appropriate major version for incompatible changes.
+- Keep persisted-data schema migrations when they safely upgrade existing state in place.
 
 Avoid unrelated refactors and new dependencies.
 

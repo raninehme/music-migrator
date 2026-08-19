@@ -56,20 +56,6 @@ Profile authentication sessions are stored under:
 └── tidal.json
 ```
 
-### Upgrading from 1.x
-
-Version 2.0 uses one canonical profile layout and configuration format. Before running an existing 1.x profile, move any root-level session files into the `sessions` directory:
-
-```bash
-mkdir -p .music-migrator/profiles/NAME/sessions
-mv .music-migrator/profiles/NAME/spotify-session.json .music-migrator/profiles/NAME/sessions/spotify.json
-mv .music-migrator/profiles/NAME/tidal-session.json .music-migrator/profiles/NAME/sessions/tidal.json
-```
-
-Only move files that exist. Existing route-specific match caches and reports can remain in place.
-
-Existing configuration must use the `services:` layout shown below. Top-level `spotify`, `max_concurrency`, and `rate_limit` settings from 1.x are no longer accepted; move request overrides under the relevant service's `requests:` section.
-
 ## Run a migration
 
 Use one command shape for every migration:
