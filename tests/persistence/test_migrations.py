@@ -1,6 +1,7 @@
 import sqlite3
 
 from music_migrator.persistence import SQLiteMigrationJournal
+from music_migrator.persistence.migrations import operation_key
 from music_migrator.reconciliation.operations import AppendPlaylistTracks
 
 
@@ -31,33 +32,21 @@ def test_completed_scope_starts_a_new_run(tmp_path):
 
 def test_replanning_supersedes_stale_pending_operation(tmp_path):
     path = tmp_path / "migration.sqlite3"
+    original = AppendPlaylistTracks(("one", "two"))
+    resumed = AppendPlaylistTracks(("two",))
 
     with SQLiteMigrationJournal(path) as journal:
         run = journal.start_run("scope")
         journal.begin_collection(run.run_id, "playlist:p1")
-        journal.plan_operations(
-            run.run_id,
-            "playlist:p1",
-            (AppendPlaylistTracks(("one", "two")),),
-        )
-        journal.plan_operations(
-            run.run_id,
-            "playlist:p1",
-            (AppendPlaylistTracks(("two",)),),
-        )
-        journal.complete_operation(
-            run.run_id,
-            "playlist:p1",
-            AppendPlaylistTracks(("two",)),
-        )
+        journal.plan_operations(run.run_id, "playlist:p1", (original,))
+        journal.plan_operations(run.run_id, "playlist:p1", (resumed,))
+        journal.complete_operation(run.run_id, "playlist:p1", resumed)
 
     connection = sqlite3.connect(path)
-    rows = connection.execute(
-        "SELECT operation_key, status FROM migration_operations ORDER BY operation_key"
-    ).fetchall()
+    rows = dict(connection.execute("SELECT operation_key, status FROM migration_operations"))
     connection.close()
 
-    assert rows == [
-        ("AppendPlaylistTracks:one\\0two", "superseded"),
-        ("AppendPlaylistTracks:two", "completed"),
-    ]
+    assert rows == {
+        operation_key(original): "superseded",
+        operation_key(resumed): "completed",
+    }
