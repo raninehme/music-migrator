@@ -4,13 +4,8 @@ import csv
 import pytest
 import yaml
 
-from music_migrator.cli import (
-    ConsoleProgress,
-    _handle_migration,
-    _setup_profile,
-    _write_unmatched,
-    main,
-)
+from music_migrator.cli import _handle_migration, _setup_profile, main
+from music_migrator.cli_output import ConsoleProgress, write_unmatched
 from music_migrator.config import MigrationConfig
 from music_migrator.domain.models import Track
 from music_migrator.migration import CollectionReport, MigrationReport
@@ -27,7 +22,7 @@ def test_unmatched_report_deduplicates_source_tracks(tmp_path):
     )
     output = tmp_path / "reports" / "unmatched.csv"
 
-    _write_unmatched(report, output)
+    write_unmatched(report, output)
 
     with output.open(encoding="utf-8", newline="") as source:
         rows = list(csv.DictReader(source))
@@ -116,7 +111,7 @@ def test_migration_handler_delegates_execution_and_presentation(tmp_path, monkey
     )
     reports = [mocker.Mock()]
     run_migration = mocker.patch("music_migrator.cli.run_migration", return_value=reports)
-    present_reports = mocker.patch("music_migrator.cli._present_reports")
+    present_reports = mocker.patch("music_migrator.cli.present_reports")
 
     result = _handle_migration(args, mocker.Mock(), paths, "rani")
 
