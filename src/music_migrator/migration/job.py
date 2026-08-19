@@ -179,7 +179,7 @@ class Migrator:
                     matched_tracks=0,
                 )
                 continue
-            if self._mode == "replace" and not results.matched:
+            if not results.matched:
                 self._journal.plan_operations(run.run_id, collection_key, ())
                 self._journal.complete_collection(
                     run.run_id,
