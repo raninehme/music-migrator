@@ -26,15 +26,15 @@ git switch -c fix/short-description
 
 Merged feature branches from this repository are deleted automatically. The protected `release` branch remains available for the next contribution.
 
-## Development setup
+## Development
 
-Use Python 3.11 or newer and install the development dependencies:
+Clone the repository, then install the development dependencies:
 
 ```bash
 python -m pip install -e ".[dev]"
 ```
 
-Run the same checks used by CI:
+Run the checks before opening a pull request:
 
 ```bash
 ruff format --check src tests
